@@ -137,22 +137,145 @@ A user's full Matrix ID is: `@USERNAME:your-address.onion`
 
 ## Client setup
 
-All clients need to **route their traffic through Tor** to reach the `.onion` address.  
-Tor acts as a local SOCKS5 proxy — the Matrix client connects to it, Tor does the rest.
+All clients connect to whistor via **Tor Browser** using a dedicated persistent profile.
+This approach works on every OS, requires no proxy configuration, and keeps your
+whistor session completely separate from your regular browsing.
 
 ```
-Matrix client → SOCKS5 127.0.0.1:PORT → Tor network → .onion → Synapse
+Tor Browser (whistor profile) → Tor network → .onion → Synapse
 ```
 
-**Parameters to enter in every client:**
+The Matrix web client runs directly inside Tor Browser — no desktop app, no proxy
+settings to manage. The `.onion` address is resolved natively by Tor Browser.
 
-| Parameter | Value |
-|---|---|
-| Homeserver URL | `http://YOUR_ADDRESS.onion:8448` |
-| Proxy type | SOCKS5 |
-| Proxy host | `127.0.0.1` |
-| Proxy port | see per-OS section below |
-| TLS/SSL | No (Tor encrypts the transport natively) |
+---
+
+### Tor Browser setup (all desktop platforms)
+
+This setup is done **once**. After that, opening your whistor profile is a single click.
+
+---
+
+#### Step 1 — Install Tor Browser
+
+**Linux — Flatpak (recommended, works on all distros)**
+
+```bash
+flatpak install flathub com.github.micahflee.torbrowser-launcher
+```
+
+**Linux — Manual**
+
+```bash
+cd ~/Downloads
+wget https://www.torproject.org/dist/torbrowser/14.5/tor-browser-linux-x86_64-14.5.tar.xz
+tar -xJf tor-browser-linux-x86_64-14.5.tar.xz
+cd tor-browser
+./start-tor-browser.desktop --register-app
+```
+
+**macOS / Windows**
+
+Download and install from the official site:
+[https://www.torproject.org/download/](https://www.torproject.org/download/)
+
+---
+
+#### Step 2 — Create a dedicated whistor profile
+
+Open the Tor Browser profile manager:
+
+```bash
+# Linux — Flatpak
+flatpak run com.github.micahflee.torbrowser-launcher --ProfileManager
+
+# Linux — Manual install
+~/tor-browser/Browser/firefox --ProfileManager
+
+# macOS
+/Applications/Tor\ Browser.app/Contents/MacOS/firefox --ProfileManager
+
+# Windows (run in terminal)
+"C:\Users\YOU\Desktop\Tor Browser\Browser\firefox.exe" --ProfileManager
+```
+
+In the profile manager:
+- Click **"Create Profile"**
+- Name it `whistor`
+- Click **"Finish"**
+- Select the `whistor` profile
+- **Uncheck** "Use the selected profile without asking at startup" — this keeps
+  your default profile intact for regular Tor browsing
+- Click **"Start Tor Browser"**
+
+---
+
+#### Step 3 — Enable persistent history and cookies in the whistor profile
+
+By default Tor Browser deletes everything on close. In your `whistor` profile only,
+enable persistence so your Matrix session survives restarts.
+
+In the Tor Browser address bar, go to:
+```
+about:preferences#privacy
+```
+
+Under **History**:
+- Change `Firefox will:` from **"Never remember history"** to **"Remember history"**
+
+This single change enables both history and cookie persistence. Your login session,
+encryption keys, and room state will be saved between sessions.
+
+> Your default Tor Browser profile is not affected — it stays fully amnesic.
+
+---
+
+#### Step 4 — Open the Matrix web client
+
+In your `whistor` profile, navigate to one of these Matrix web clients:
+
+| Client | URL | Style |
+|---|---|---|
+| Element Web | `https://app.element.io` | Full-featured, recommended |
+| Cinny | `https://app.cinny.in` | Discord-style, clean UI |
+| Hydrogen | `https://hydrogen.element.io` | Ultra lightweight |
+
+Enter your homeserver when prompted:
+```
+http://YOUR_ADDRESS.onion:8448
+```
+
+Log in with your username and password. Your session will persist across restarts.
+
+---
+
+#### Step 5 — Launch the whistor profile directly (shortcut)
+
+To open Tor Browser directly on the whistor profile without going through the
+profile manager every time:
+
+```bash
+# Linux — Flatpak
+flatpak run com.github.micahflee.torbrowser-launcher -P whistor
+
+# Linux — Manual
+~/tor-browser/Browser/firefox -P whistor
+
+# macOS
+/Applications/Tor\ Browser.app/Contents/MacOS/firefox -P whistor
+
+# Windows
+"C:\Users\YOU\Desktop\Tor Browser\Browser\firefox.exe" -P whistor
+```
+
+Create a permanent alias on Linux/macOS:
+
+```bash
+echo "alias whistor-browser='flatpak run com.github.micahflee.torbrowser-launcher -P whistor'" >> ~/.bashrc
+source ~/.bashrc
+```
+
+Type `whistor-browser` in any terminal to launch directly into your whistor session.
 
 ---
 
@@ -206,11 +329,11 @@ Matrix client → SOCKS5 127.0.0.1:PORT → Tor network → .onion → Synapse
 
 ### Linux
 
-The recommended client is **Element Desktop via Flatpak** — it works on every distro
-and desktop environment (GNOME, KDE, XFCE...) with a single install command,
-and supports a built-in proxy configuration.
+Follow the **Tor Browser setup** section above — it covers Linux in full detail.
 
-**1. Install the Tor daemon**
+If you prefer a native desktop app, install the Tor daemon and use Element Desktop:
+
+**1. Install and configure the Tor daemon**
 
 ```bash
 # Debian / Ubuntu
@@ -226,11 +349,9 @@ sudo dnf install tor
 sudo systemctl enable --now tor
 ```
 
-**2. Fix the Tor system configuration**
-
 The default `/etc/tor/torrc` on some distributions tries to bind a DNS listener
 on port 5353 (a privileged port), which causes Tor to fail at startup.
-Edit the config to disable it — only the SOCKS5 port is needed:
+Edit the config to disable it:
 
 ```bash
 sudo nano /etc/tor/torrc
@@ -249,102 +370,56 @@ Make sure this line is present and uncommented:
 SocksPort 9050
 ```
 
-Then restart Tor and verify it is running:
+Restart and verify:
 
 ```bash
 sudo systemctl restart tor
 sudo systemctl status tor
 ```
 
-Tor exposes a SOCKS5 proxy on `127.0.0.1:9050`, runs in the background, and starts at boot. ✅ Zero daily friction.
-
-**3. Install Element Desktop via Flatpak**
-
-Flatpak works on all distros. If Flatpak is not installed yet:
-
-```bash
-# Debian / Ubuntu
-sudo apt install flatpak
-
-# Arch Linux
-sudo pacman -S flatpak
-
-# Fedora — already installed by default
-```
-
-Add Flathub and install Element:
+**2. Install Element Desktop via Flatpak**
 
 ```bash
 flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 flatpak install flathub im.riot.Riot
 ```
 
-**4. Forward all Element traffic through Tor permanently**
-
-Flatpak sandboxes apps, so the system proxy settings are not applied automatically.
-Use `flatpak override` to inject the Tor proxy for every Element launch — from the
-app menu or the terminal:
+**3. Route Element through Tor via Flatpak override**
 
 ```bash
 flatpak override --user --env=ALL_PROXY=socks5h://127.0.0.1:9050 im.riot.Riot
 ```
 
-Verify the override is active:
-
-```bash
-flatpak override --user --show im.riot.Riot
-```
-
-To remove it later:
-
-```bash
-flatpak override --user --unset-env=ALL_PROXY im.riot.Riot
-```
-
-**5. Configure proxy in Element**
-- Settings → General → **Proxy**
-- `SOCKS5` / `127.0.0.1` / `9050`
-
-**6. Connect**
+**4. Connect**
+- Settings → General → Proxy → `SOCKS5` / `127.0.0.1` / `9050`
 - "Sign in" → "Edit" → `http://YOUR_ADDRESS.onion:8448`
-- Enter your username and password
 
 ---
 
 ### macOS
 
-**Option A — Homebrew (recommended)**
+Follow the **Tor Browser setup** section above.
+
+Alternative with a native Tor daemon:
 
 ```bash
 brew install tor
-brew services start tor   # Starts automatically at login
+brew services start tor   # Starts automatically at login — port 9050
 ```
 
-Proxy port: **9050** · ✅ Zero daily friction.
-
-**Option B — Tor Browser**  
-[Download Tor Browser](https://www.torproject.org/download/) — keep it open while using Element.  
-Proxy port: **9150** · ⚠️ Must be launched manually each session.
-
-**Install Element Desktop**  
-[Download for macOS](https://element.io/download)
-
-**Configure proxy in Element**
-- Settings → General → **Proxy**
-- `SOCKS5` / `127.0.0.1` / `9050` (Homebrew) or `9150` (Tor Browser)
-
-**Connect**
-- "Sign in" → "Edit" → `http://YOUR_ADDRESS.onion:8448`
+Then install Element Desktop from [https://element.io/download](https://element.io/download)
+and set proxy to `SOCKS5 / 127.0.0.1 / 9050`.
 
 ---
 
 ### Windows
 
-**Option A — Tor Expert Bundle as a Windows service (recommended)**
+Follow the **Tor Browser setup** section above.
+
+Alternative with Tor as a Windows service:
 
 - Download **Tor Expert Bundle**: [https://www.torproject.org/download/tor/](https://www.torproject.org/download/tor/)
-- Extract to `C:\tor`
-- Open a terminal **as Administrator**:
+- Extract to `C:\tor`, open an admin terminal:
 
 ```powershell
 cd C:\tor
@@ -352,36 +427,20 @@ cd C:\tor
 net start tor
 ```
 
-Tor runs as a Windows service and starts automatically at boot. ✅ Zero daily friction.  
-Proxy port: **9050**
-
-**Option B — Tor Browser**  
-[Download Tor Browser](https://www.torproject.org/download/) — keep it open while using Element.  
-Proxy port: **9150** · ⚠️ Must be launched manually each session.
-
-**Install Element Desktop**  
-[Download for Windows](https://element.io/download)
-
-**Configure proxy in Element**
-- Settings → General → **Proxy**
-- `SOCKS5` / `127.0.0.1` / `9050` (service) or `9150` (Tor Browser)
-
-**Connect**
-- "Sign in" → "Edit" → `http://YOUR_ADDRESS.onion:8448`
+Then install Element Desktop from [https://element.io/download](https://element.io/download)
+and set proxy to `SOCKS5 / 127.0.0.1 / 9050`.
 
 ---
 
 ### Quick reference table
 
-| OS | Matrix client | Tor method | Port | Daily friction |
-|---|---|---|---|---|
-| Android | Element | Orbot — VPN mode + Start on Boot | 9050 | None ✅ |
-| iOS | Element | Orbot — VPN mode | 9050 | 1 tap |
-| Linux | Element / Nheko / Gomuks | `tor` systemd daemon | 9050 | None ✅ |
-| macOS | Element | `brew install tor` | 9050 | None ✅ |
-| macOS | Element | Tor Browser | 9150 | Manual launch |
-| Windows | Element | Tor Expert Bundle (service) | 9050 | None ✅ |
-| Windows | Element | Tor Browser | 9150 | Manual launch |
+| OS | Method | Client | Daily friction |
+|---|---|---|---|
+| Android | Orbot VPN mode | Element (native app) | None ✅ |
+| iOS | Orbot VPN mode | Element (native app) | 1 tap |
+| Linux | Tor Browser — whistor profile | Element Web / Cinny | None ✅ |
+| macOS | Tor Browser — whistor profile | Element Web / Cinny | None ✅ |
+| Windows | Tor Browser — whistor profile | Element Web / Cinny | None ✅ |
 
 ---
 
