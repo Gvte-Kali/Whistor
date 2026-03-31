@@ -1,4 +1,4 @@
-# whistor
+# Whistor
 
 > A self-hosted Matrix (Synapse) homeserver exposed **exclusively** over a Tor v3 hidden service.  
 > No open ports. No DNS. No clearnet exposure. One command to deploy.
