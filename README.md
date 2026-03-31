@@ -15,9 +15,7 @@
 - [Client setup](#client-setup)
   - [Android](#android)
   - [iOS](#ios)
-  - [Linux](#linux)
-  - [macOS](#macos)
-  - [Windows](#windows)
+  - [Desktop (Linux / macOS / Windows)](#desktop-linux--macos--windows)
   - [Quick reference table](#quick-reference-table)
 - [Backup & restore](#backup--restore)
 - [Security](#security)
@@ -150,9 +148,11 @@ settings to manage. The `.onion` address is resolved natively by Tor Browser.
 
 ---
 
-### Tor Browser setup (all desktop platforms)
+### Desktop (Linux / macOS / Windows)
 
-This setup is done **once**. After that, opening your whistor profile is a single click.
+The recommended approach on all desktop platforms is **Tor Browser** with a cookie
+exception for Element Web. This requires no proxy configuration, works natively
+with `.onion` addresses, and keeps your Matrix session persistent across restarts.
 
 ---
 
@@ -181,58 +181,36 @@ Download and install from the official site:
 
 ---
 
-#### Step 2 — Create a dedicated whistor profile
+#### Step 2 — Add a cookie exception for Element Web
 
-Open the Tor Browser profile manager:
+By default Tor Browser deletes all cookies and site data on close. Instead of
+disabling this globally, add a targeted exception for Element Web only — your
+Matrix session will persist while everything else stays amnesic.
 
-```bash
-# Linux — Flatpak
-flatpak run com.github.micahflee.torbrowser-launcher --ProfileManager
-
-# Linux — Manual install
-~/tor-browser/Browser/firefox --ProfileManager
-
-# macOS
-/Applications/Tor\ Browser.app/Contents/MacOS/firefox --ProfileManager
-
-# Windows (run in terminal)
-"C:\Users\YOU\Desktop\Tor Browser\Browser\firefox.exe" --ProfileManager
-```
-
-In the profile manager:
-- Click **"Create Profile"**
-- Name it `whistor`
-- Click **"Finish"**
-- Select the `whistor` profile
-- **Uncheck** "Use the selected profile without asking at startup" — this keeps
-  your default profile intact for regular Tor browsing
-- Click **"Start Tor Browser"**
-
----
-
-#### Step 3 — Enable persistent history and cookies in the whistor profile
-
-By default Tor Browser deletes everything on close. In your `whistor` profile only,
-enable persistence so your Matrix session survives restarts.
-
-In the Tor Browser address bar, go to:
+In Tor Browser, open:
 ```
 about:preferences#privacy
 ```
 
-Under **History**:
-- Change `Firefox will:` from **"Never remember history"** to **"Remember history"**
+Scroll to **Cookies and Site Data** → click **"Manage Exceptions..."**
 
-This single change enables both history and cookie persistence. Your login session,
-encryption keys, and room state will be saved between sessions.
+Add the following URLs and set them to **Allow**:
 
-> Your default Tor Browser profile is not affected — it stays fully amnesic.
+```
+https://app.element.io
+https://app.cinny.in
+```
+
+Click **"Save Changes"**.
+
+> Your Tor Browser remains fully amnesic for all other sites.
+> Only Element Web and Cinny will retain their session data between restarts.
 
 ---
 
-#### Step 4 — Open the Matrix web client
+#### Step 3 — Connect to your whistor server
 
-In your `whistor` profile, navigate to one of these Matrix web clients:
+Open one of these Matrix web clients in Tor Browser:
 
 | Client | URL | Style |
 |---|---|---|
@@ -245,37 +223,8 @@ Enter your homeserver when prompted:
 http://YOUR_ADDRESS.onion:8448
 ```
 
-Log in with your username and password. Your session will persist across restarts.
-
----
-
-#### Step 5 — Launch the whistor profile directly (shortcut)
-
-To open Tor Browser directly on the whistor profile without going through the
-profile manager every time:
-
-```bash
-# Linux — Flatpak
-flatpak run com.github.micahflee.torbrowser-launcher -P whistor
-
-# Linux — Manual
-~/tor-browser/Browser/firefox -P whistor
-
-# macOS
-/Applications/Tor\ Browser.app/Contents/MacOS/firefox -P whistor
-
-# Windows
-"C:\Users\YOU\Desktop\Tor Browser\Browser\firefox.exe" -P whistor
-```
-
-Create a permanent alias on Linux/macOS:
-
-```bash
-echo "alias whistor-browser='flatpak run com.github.micahflee.torbrowser-launcher -P whistor'" >> ~/.bashrc
-source ~/.bashrc
-```
-
-Type `whistor-browser` in any terminal to launch directly into your whistor session.
+Log in with your username and password. Your session will persist across restarts
+thanks to the cookie exception set in Step 2.
 
 ---
 
@@ -327,120 +276,15 @@ Type `whistor-browser` in any terminal to launch directly into your whistor sess
 
 ---
 
-### Linux
-
-Follow the **Tor Browser setup** section above — it covers Linux in full detail.
-
-If you prefer a native desktop app, install the Tor daemon and use Element Desktop:
-
-**1. Install and configure the Tor daemon**
-
-```bash
-# Debian / Ubuntu
-sudo apt install tor
-
-# Arch Linux
-sudo pacman -S tor
-
-# Fedora
-sudo dnf install tor
-
-# Enable automatic startup
-sudo systemctl enable --now tor
-```
-
-The default `/etc/tor/torrc` on some distributions tries to bind a DNS listener
-on port 5353 (a privileged port), which causes Tor to fail at startup.
-Edit the config to disable it:
-
-```bash
-sudo nano /etc/tor/torrc
-```
-
-Comment out or remove these lines if present:
-
-```
-# DNSPort 127.0.0.1:5353
-# TransPort 127.0.0.1:9040
-```
-
-Make sure this line is present and uncommented:
-
-```
-SocksPort 9050
-```
-
-Restart and verify:
-
-```bash
-sudo systemctl restart tor
-sudo systemctl status tor
-```
-
-**2. Install Element Desktop via Flatpak**
-
-```bash
-flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-flatpak install flathub im.riot.Riot
-```
-
-**3. Route Element through Tor via Flatpak override**
-
-```bash
-flatpak override --user --env=ALL_PROXY=socks5h://127.0.0.1:9050 im.riot.Riot
-```
-
-**4. Connect**
-- Settings → General → Proxy → `SOCKS5` / `127.0.0.1` / `9050`
-- "Sign in" → "Edit" → `http://YOUR_ADDRESS.onion:8448`
-
----
-
-### macOS
-
-Follow the **Tor Browser setup** section above.
-
-Alternative with a native Tor daemon:
-
-```bash
-brew install tor
-brew services start tor   # Starts automatically at login — port 9050
-```
-
-Then install Element Desktop from [https://element.io/download](https://element.io/download)
-and set proxy to `SOCKS5 / 127.0.0.1 / 9050`.
-
----
-
-### Windows
-
-Follow the **Tor Browser setup** section above.
-
-Alternative with Tor as a Windows service:
-
-- Download **Tor Expert Bundle**: [https://www.torproject.org/download/tor/](https://www.torproject.org/download/tor/)
-- Extract to `C:\tor`, open an admin terminal:
-
-```powershell
-cd C:\tor
-.\tor.exe --service install
-net start tor
-```
-
-Then install Element Desktop from [https://element.io/download](https://element.io/download)
-and set proxy to `SOCKS5 / 127.0.0.1 / 9050`.
-
----
-
 ### Quick reference table
 
 | OS | Method | Client | Daily friction |
 |---|---|---|---|
 | Android | Orbot VPN mode | Element (native app) | None ✅ |
 | iOS | Orbot VPN mode | Element (native app) | 1 tap |
-| Linux | Tor Browser — whistor profile | Element Web / Cinny | None ✅ |
-| macOS | Tor Browser — whistor profile | Element Web / Cinny | None ✅ |
-| Windows | Tor Browser — whistor profile | Element Web / Cinny | None ✅ |
+| Linux | Tor Browser + cookie exception | Element Web / Cinny | None ✅ |
+| macOS | Tor Browser + cookie exception | Element Web / Cinny | None ✅ |
+| Windows | Tor Browser + cookie exception | Element Web / Cinny | None ✅ |
 
 ---
 
