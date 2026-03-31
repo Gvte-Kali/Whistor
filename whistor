@@ -171,7 +171,7 @@ cmd_help() {
   echo -e "  ${CYAN}whistor user admin${NC} <user> <password> Create an admin (inline password)"
   echo -e "  ${CYAN}whistor user list${NC}                    List all registered users"
   echo -e "  ${CYAN}whistor user conf${NC} <user>            Show connection info for a user"
-  echo -e "  ${CYAN}whistor user qr${NC} <user>              Print a QR code for Element mobile setup"
+  echo -e "  ${CYAN}whistor user qr${NC} <user>              Print a QR code with connection info"
   echo -e "  ${CYAN}whistor user delete${NC} <user>           Deactivate a user account"
   echo -e "  ${CYAN}whistor user passwd${NC} <user>           Change a user's password"
   echo ""
@@ -390,11 +390,12 @@ con.close()
 }
 
 # =============================================================================
-# COMMAND: user qr <username>
+# COMMAND: user qr <username> <password>
 # =============================================================================
-# Print a QR code in the terminal encoding the homeserver URL and Matrix ID.
-# Useful for scanning with Element mobile to set up the server connection.
-# Requires qrencode (apt/brew) or Python qrcode module (pip install qrcode).
+# Print a QR code containing the full credentials as plain text.
+# When scanned, the phone displays a note with Matrix ID, password, and URL.
+# Password cannot be recovered from the database (bcrypt) — must be provided.
+# Requires qrencode (installed by install.sh).
 # =============================================================================
 cmd_user_qr() {
   local username="${1:-}"
@@ -421,12 +422,19 @@ con.close()
   local matrix_id="@${username}:${onion}"
   local server_url="http://${onion}:8448"
 
-  # QR code content: homeserver URL (what Element asks for at login)
-  local qr_data="$server_url"
+  # Prompt for password — press Enter to leave blank
+  local password=""
+  echo -n "Password for @${username} (Enter to skip): "
+  read -rs password
+  echo ""
+
+  local qr_data="Server URL : ${server_url}
+Matrix ID  : ${matrix_id}
+Password   : ${password}"
 
   echo ""
   echo -e "  ${BOLD}QR code for ${CYAN}${username}${NC}"
-  echo -e "  ${DIM}Scan with Element mobile → Sign in → Scan QR / Edit homeserver${NC}"
+  echo -e "  ${DIM}Scan with any phone camera — saves as a note with full credentials${NC}"
   echo ""
 
   if command -v qrencode &>/dev/null; then
@@ -435,20 +443,12 @@ con.close()
     python3 -c "
 import qrcode
 qr = qrcode.QRCode(border=2)
-qr.add_data('${qr_data}')
+qr.add_data('''${qr_data}''')
 qr.make(fit=True)
 qr.print_ascii(invert=True)
 "
   else
-    warn "No QR generator found. Install one:"
-    echo -e "  ${CYAN}sudo apt install qrencode${NC}   (Debian/Ubuntu)"
-    echo -e "  ${CYAN}brew install qrencode${NC}       (macOS)"
-    echo -e "  ${CYAN}pip install qrcode${NC}          (Python)"
-    echo ""
-    echo -e "  ${BOLD}Enter this URL manually in Element:${NC}"
-    echo -e "  ${CYAN}${server_url}${NC}"
-    echo ""
-    return
+    die "qrencode not found. Run: sudo apt install qrencode"
   fi
 
   echo ""
