@@ -4,7 +4,7 @@
 # =============================================================================
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/YOUR_USER/whistor/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Gvte-Kali/whistor/main/install.sh | bash
 #
 # What this script does, in order:
 #   1. Check that Docker and Docker Compose are installed and running
