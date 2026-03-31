@@ -66,13 +66,13 @@
 ### One-liner
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_USER/whistor/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Gvte-Kali/Whistor/refs/heads/main/install.sh | bash
 ```
 
 ### Manual
 
 ```bash
-git clone https://github.com/YOUR_USER/whistor.git
+git clone https://github.com/Gvte-Kali/whistor.git
 cd whistor
 docker compose up -d
 ```
