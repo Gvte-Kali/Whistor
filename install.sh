@@ -30,10 +30,10 @@ set -euo pipefail
 # =============================================================================
 
 # GitHub repository URL (used by git clone)
-REPO_URL="https://github.com/YOUR_USER/whistor"
+REPO_URL="https://github.com/Gvte-Kali/whistor"
 
 # Raw base URL (used as fallback when git is not available)
-RAW_URL="https://raw.githubusercontent.com/YOUR_USER/whistor/main"
+RAW_URL="https://raw.githubusercontent.com/Gvte-Kali/whistor/main"
 
 # Installation directory on the host machine.
 # Can be overridden by setting WHISTOR_DIR before running the script.
