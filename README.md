@@ -223,14 +223,14 @@ http://YOUR_ADDRESS.onion:8448
 **1. Install Orbot**  
 [App Store](https://apps.apple.com/app/orbot/id1609461976)
 
-**2. Configure Orbot**
+**2. Install Element**  
+[App Store](https://apps.apple.com/app/element/id1083446067)
+
+**3. Configure Orbot**
 - Enable **VPN mode**
 - ⚠️ On iOS, Orbot must be launched manually before using Element (Apple restricts background VPN processes)
 
-**3. Install Element**  
-[App Store](https://apps.apple.com/app/element/id1083446067)
-
-**4. Enable proxy support in Element**
+**4. Configure Element**
 - Settings → **Labs** → enable "Proxy support"
 - Set proxy: `SOCKS5` / `127.0.0.1` / `9050`
 
