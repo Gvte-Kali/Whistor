@@ -181,51 +181,17 @@ Download and install from the official site:
 
 ---
 
-#### Step 2 — Add a cookie exception for Element Web
 
-By default Tor Browser deletes all cookies and site data on close. Instead of
-disabling this globally, add a targeted exception for Element Web only — your
-Matrix session will persist while everything else stays amnesic.
+#### Step 2 — Connect to your whistor server
 
-In Tor Browser, open:
-```
-about:preferences#privacy
-```
+Open Cinny, a Matrix web client in Tor Browser:
 
-Scroll to **Cookies and Site Data** → click **"Manage Exceptions..."**
-
-Add the following URLs and set them to **Allow**:
-
-```
-https://app.element.io
-https://app.cinny.in
-```
-
-Click **"Save Changes"**.
-
-> Your Tor Browser remains fully amnesic for all other sites.
-> Only Element Web and Cinny will retain their session data between restarts.
-
----
-
-#### Step 3 — Connect to your whistor server
-
-Open one of these Matrix web clients in Tor Browser:
-
-| Client | URL | Style |
-|---|---|---|
-| Element Web | `https://app.element.io` | Full-featured, recommended |
 | Cinny | `https://app.cinny.in` | Discord-style, clean UI |
-| Hydrogen | `https://hydrogen.element.io` | Ultra lightweight |
 
 Enter your homeserver when prompted:
 ```
 http://YOUR_ADDRESS.onion:8448
 ```
-
-Log in with your username and password. Your session will persist across restarts
-thanks to the cookie exception set in Step 2.
-
 ---
 
 ### Android
