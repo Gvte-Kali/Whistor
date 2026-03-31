@@ -3,10 +3,17 @@
 > A self-hosted Matrix (Synapse) homeserver exposed **exclusively** over a Tor v3 hidden service.  
 > No open ports. No DNS. No clearnet exposure. One command to deploy.
 
+
+### One-liner install
+```bash
+curl -fsSL https://raw.githubusercontent.com/Gvte-Kali/Whistor/refs/heads/main/install.sh | bash
+```
+
 ---
 
 ## Table of Contents
 
+- [Hardware & OS requirements](#hardware--os-requirements)
 - [How it works](#how-it-works)
 - [Server requirements](#server-requirements)
 - [Install the server](#install-the-server)
@@ -20,6 +27,58 @@
 - [Backup & restore](#backup--restore)
 - [Security](#security)
 - [Project structure](#project-structure)
+
+---
+
+## Hardware & OS requirements
+
+### Minimum specs
+
+| Component | Minimum | Recommended |
+|---|---|---|
+| CPU | 1 vCPU | 2 vCPU |
+| RAM | 1 GB | 2 GB |
+| Storage | 10 GB SSD | 20 GB SSD |
+| Network | Any | 100 Mbps+ |
+| Architecture | x86_64 | x86_64 |
+
+> Storage grows over time with message history and media files.
+> Plan for ~1 GB/month per active user sending media.
+
+---
+
+### Recommended OS
+
+**Debian 12 or Ubuntu 24.04 LTS** — best Docker compatibility, well-documented,
+long-term support. Most cloud providers offer these out of the box.
+
+Other compatible systems: any Linux distro that supports Docker 20.x+.
+Windows and macOS are **not** supported for the server.
+
+---
+
+### Recommended hardware
+
+whistor is designed to run on minimal hardware. Federation is disabled, so
+resource usage stays low regardless of room size — only your users matter.
+
+**For a small private group (2–10 users) — quick and cheap:**
+
+| | Option |
+|---|---|
+| 🥇 Best value | **Hetzner CX22** — 2 vCPU, 4 GB RAM, 40 GB SSD — ~€4/month |
+| 🥈 Cheapest | **Oracle Cloud Free Tier** — 1 vCPU, 1 GB RAM — free forever |
+| 🏠 Self-hosted | **Raspberry Pi 4** (4 GB RAM) + SSD — one-time cost, runs at home |
+
+**For a larger group (10–50 users):**
+
+| | Option |
+|---|---|
+| 🥇 Recommended | **Hetzner CX32** — 4 vCPU, 8 GB RAM, 80 GB SSD — ~€9/month |
+| 🥈 Alternative | **DigitalOcean Droplet** — 2 vCPU, 4 GB RAM — ~$24/month |
+
+> **Why Hetzner?** European datacenters, competitive pricing, simple interface,
+> reliable uptime. No affiliation — just the community standard for self-hosting.
 
 ---
 
@@ -146,8 +205,9 @@ A user's full Matrix ID is: `@USERNAME:your-address.onion`
 > Some features may not work correctly depending on the client and configuration used.
 > The most reliable desktop approach is **Cinny via Tor Browser** as described below.
 
-All clients connect to whistor via **Tor Browser**.
-This approach works on every OS, requires no configuration.
+All clients connect to whistor via **Tor Browser** using a dedicated persistent profile.
+This approach works on every OS, requires no proxy configuration, and keeps your
+whistor session completely separate from your regular browsing.
 
 ```
 Tor Browser (whistor profile) → Tor network → .onion → Synapse
@@ -240,19 +300,19 @@ thanks to the cookie exception set in Step 2.
 
 ### Android
 
-**1. Install Element**  
-[Play Store](https://play.google.com/store/apps/details?id=im.vector.app) · [F-Droid](https://f-droid.org/packages/im.vector.app/)
-
-**2. Install Orbot** (Tor proxy for Android)  
+**1. Install Orbot** (Tor proxy for Android)  
 [Play Store](https://play.google.com/store/apps/details?id=org.torproject.android) · [F-Droid](https://guardianproject.info/fdroid/)
 
-**3. Configure Orbot**
+**2. Configure Orbot**
 - Enable **VPN mode**
 - Settings → check **"Start on Boot"**
 - VPN apps list → add **Element**
 - Tap Start
 
 ✅ Orbot starts automatically at boot — zero daily friction after setup.
+
+**3. Install Element**  
+[Play Store](https://play.google.com/store/apps/details?id=im.vector.app) · [F-Droid](https://f-droid.org/packages/im.vector.app/)
 
 **4. Connect Element**
 - "Sign in" → "Edit" → enter `http://YOUR_ADDRESS.onion:8448`
@@ -292,9 +352,9 @@ thanks to the cookie exception set in Step 2.
 |---|---|---|---|
 | Android | Orbot VPN mode | Element (native app) | None ✅ |
 | iOS | Orbot VPN mode | Element (native app) | 1 tap |
-| Linux | Tor Browser + cookie exception | Cinny | None ✅ |
-| macOS | Tor Browser + cookie exception | ECinny | None ✅ |
-| Windows | Tor Browser + cookie exception | ECinny | None ✅ |
+| Linux | Tor Browser + cookie exception | Element Web / Cinny | None ✅ |
+| macOS | Tor Browser + cookie exception | Element Web / Cinny | None ✅ |
+| Windows | Tor Browser + cookie exception | Element Web / Cinny | None ✅ |
 
 ---
 
