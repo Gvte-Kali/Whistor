@@ -1,0 +1,121 @@
+{
+  // ==========================================================================
+  // .devcontainer/devcontainer.json — whistor GitHub Codespaces configuration
+  // ==========================================================================
+  //
+  // This file tells GitHub Codespaces how to build and configure the
+  // development environment for whistor.
+  //
+  // When you open this repo in a Codespace:
+  //   1. GitHub spins up an Ubuntu container with this configuration
+  //   2. Docker-in-Docker is enabled so we can run docker compose
+  //   3. postCreateCommand runs .devcontainer/setup.sh automatically
+  //   4. The whistor CLI is available immediately in the terminal
+  //
+  // To open a Codespace:
+  //   GitHub repo page → Code button → Codespaces tab → "Create codespace"
+  //
+  // ==========================================================================
+
+  "name": "whistor dev environment",
+
+  // Use the official Microsoft Docker-in-Docker image as the base.
+  // This gives us Ubuntu + Docker + Docker Compose out of the box.
+  // The "2" tag tracks the latest stable version.
+  "image": "mcr.microsoft.com/devcontainers/docker:2",
+
+  // ==========================================================================
+  // FEATURES
+  // Additional tools to install on top of the base image.
+  // ==========================================================================
+  "features": {
+    // Docker-in-Docker: allows running `docker` and `docker compose` commands
+    // from inside the Codespace container itself.
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "dockerDashComposeVersion": "v2"
+    },
+
+    // Common utilities: jq, curl, wget, git, etc.
+    // Useful for inspecting JSON responses and fetching files.
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "configureZshAsDefaultShell": true,
+      "installOhMyZsh": true
+    }
+  },
+
+  // ==========================================================================
+  // VS CODE EXTENSIONS
+  // Installed automatically when the Codespace opens.
+  // ==========================================================================
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        // Shell script syntax highlighting and error detection
+        "timonwong.shellcheck",
+        // YAML syntax support (for docker-compose.yml and homeserver.yaml)
+        "redhat.vscode-yaml",
+        // Docker integration: manage containers from the VS Code sidebar
+        "ms-azuretools.vscode-docker",
+        // Highlight TODO/FIXME/NOTE comments in code
+        "gruntfuggly.todo-tree",
+        // Better terminal experience
+        "mkhl.direnv"
+      ],
+      "settings": {
+        // Use zsh as the default terminal shell
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        // Auto-format shell scripts on save using shellcheck suggestions
+        "editor.formatOnSave": true,
+        // Wrap long lines in the editor (useful for reading long bash scripts)
+        "editor.wordWrap": "on",
+        // Associate .template files with YAML for syntax highlighting
+        "files.associations": {
+          "*.template.yaml": "yaml",
+          "*.template": "shellscript"
+        }
+      }
+    }
+  },
+
+  // ==========================================================================
+  // PORT FORWARDING
+  // Expose internal ports to the Codespace's public URL.
+  // Note: these ports are accessible via HTTPS through GitHub's tunnel,
+  // but Tor .onion routing still requires a real network — this is
+  // only useful for direct HTTP testing of Synapse internals.
+  // ==========================================================================
+  "forwardPorts": [
+    8008,   // Synapse client/federation HTTP API (internal only)
+    8448    // Matrix federation port (used by Tor hidden service internally)
+  ],
+
+  "portsAttributes": {
+    "8008": {
+      "label": "Synapse API",
+      "onAutoForward": "silent"
+    },
+    "8448": {
+      "label": "Matrix federation",
+      "onAutoForward": "silent"
+    }
+  },
+
+  // ==========================================================================
+  // POST-CREATE COMMAND
+  // Runs once after the container is created for the first time.
+  // This is where we install whistor and start the stack automatically.
+  // ==========================================================================
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+
+  // ==========================================================================
+  // POST-START COMMAND
+  // Runs every time the Codespace starts (including after it wakes up).
+  // We print a status reminder so you immediately know the server state.
+  // ==========================================================================
+  "postStartCommand": "whistor status 2>/dev/null || echo 'whistor stack is not running — type: whistor start'",
+
+  // Run as root so Docker operations work without sudo inside the Codespace.
+  "remoteUser": "root"
+}
