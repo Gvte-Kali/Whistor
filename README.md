@@ -240,19 +240,19 @@ thanks to the cookie exception set in Step 2.
 
 ### Android
 
-**1. Install Orbot** (Tor proxy for Android)  
+**1. Install Element**  
+[Play Store](https://play.google.com/store/apps/details?id=im.vector.app) · [F-Droid](https://f-droid.org/packages/im.vector.app/)
+
+**2. Install Orbot** (Tor proxy for Android)  
 [Play Store](https://play.google.com/store/apps/details?id=org.torproject.android) · [F-Droid](https://guardianproject.info/fdroid/)
 
-**2. Configure Orbot**
+**3. Configure Orbot**
 - Enable **VPN mode**
 - Settings → check **"Start on Boot"**
 - VPN apps list → add **Element**
 - Tap Start
 
 ✅ Orbot starts automatically at boot — zero daily friction after setup.
-
-**3. Install Element**  
-[Play Store](https://play.google.com/store/apps/details?id=im.vector.app) · [F-Droid](https://f-droid.org/packages/im.vector.app/)
 
 **4. Connect Element**
 - "Sign in" → "Edit" → enter `http://YOUR_ADDRESS.onion:8448`
@@ -292,9 +292,9 @@ thanks to the cookie exception set in Step 2.
 |---|---|---|---|
 | Android | Orbot VPN mode | Element (native app) | None ✅ |
 | iOS | Orbot VPN mode | Element (native app) | 1 tap |
-| Linux | Tor Browser + cookie exception | Element Web / Cinny | None ✅ |
-| macOS | Tor Browser + cookie exception | Element Web / Cinny | None ✅ |
-| Windows | Tor Browser + cookie exception | Element Web / Cinny | None ✅ |
+| Linux | Tor Browser + cookie exception | Cinny | None ✅ |
+| macOS | Tor Browser + cookie exception | ECinny | None ✅ |
+| Windows | Tor Browser + cookie exception | ECinny | None ✅ |
 
 ---
 
