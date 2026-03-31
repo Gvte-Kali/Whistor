@@ -146,9 +146,8 @@ A user's full Matrix ID is: `@USERNAME:your-address.onion`
 > Some features may not work correctly depending on the client and configuration used.
 > The most reliable desktop approach is **Cinny via Tor Browser** as described below.
 
-All clients connect to whistor via **Tor Browser** using a dedicated persistent profile.
-This approach works on every OS, requires no proxy configuration, and keeps your
-whistor session completely separate from your regular browsing.
+All clients connect to whistor via **Tor Browser**.
+This approach works on every OS, requires no configuration.
 
 ```
 Tor Browser (whistor profile) → Tor network → .onion → Synapse
