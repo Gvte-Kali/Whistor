@@ -171,6 +171,7 @@ cmd_help() {
   echo -e "  ${CYAN}whistor user admin${NC} <user> <password> Create an admin (inline password)"
   echo -e "  ${CYAN}whistor user list${NC}                    List all registered users"
   echo -e "  ${CYAN}whistor user conf${NC} <user>            Show connection info for a user"
+  echo -e "  ${CYAN}whistor user qr${NC} <user>              Print a QR code for Element mobile setup"
   echo -e "  ${CYAN}whistor user delete${NC} <user>           Deactivate a user account"
   echo -e "  ${CYAN}whistor user passwd${NC} <user>           Change a user's password"
   echo ""
@@ -388,6 +389,74 @@ con.close()
   echo ""
 }
 
+# =============================================================================
+# COMMAND: user qr <username>
+# =============================================================================
+# Print a QR code in the terminal encoding the homeserver URL and Matrix ID.
+# Useful for scanning with Element mobile to set up the server connection.
+# Requires qrencode (apt/brew) or Python qrcode module (pip install qrcode).
+# =============================================================================
+cmd_user_qr() {
+  local username="${1:-}"
+  [[ -z "$username" ]] && die "Usage: whistor user qr <username>"
+
+  check_running
+
+  local onion
+  onion=$(get_onion)
+  [[ "$onion" == "unavailable" ]] && die ".onion address not available. Is the stack running?"
+
+  # Verify user exists
+  local exists
+  exists=$(docker exec "$SYNAPSE_CONTAINER" \
+    python3 -c "
+import sqlite3
+con = sqlite3.connect('/data/homeserver.db')
+row = con.execute(\"SELECT name FROM users WHERE name LIKE '@${username}:%'\").fetchone()
+print('yes' if row else 'no')
+con.close()
+" 2>/dev/null) || die "Could not query the database."
+  [[ "$exists" != "yes" ]] && die "User '@${username}' not found."
+
+  local matrix_id="@${username}:${onion}"
+  local server_url="http://${onion}:8448"
+
+  # QR code content: homeserver URL (what Element asks for at login)
+  local qr_data="$server_url"
+
+  echo ""
+  echo -e "  ${BOLD}QR code for ${CYAN}${username}${NC}"
+  echo -e "  ${DIM}Scan with Element mobile → Sign in → Scan QR / Edit homeserver${NC}"
+  echo ""
+
+  if command -v qrencode &>/dev/null; then
+    qrencode -t ansiutf8 -m 2 "$qr_data"
+  elif python3 -c "import qrcode" &>/dev/null 2>&1; then
+    python3 -c "
+import qrcode
+qr = qrcode.QRCode(border=2)
+qr.add_data('${qr_data}')
+qr.make(fit=True)
+qr.print_ascii(invert=True)
+"
+  else
+    warn "No QR generator found. Install one:"
+    echo -e "  ${CYAN}sudo apt install qrencode${NC}   (Debian/Ubuntu)"
+    echo -e "  ${CYAN}brew install qrencode${NC}       (macOS)"
+    echo -e "  ${CYAN}pip install qrcode${NC}          (Python)"
+    echo ""
+    echo -e "  ${BOLD}Enter this URL manually in Element:${NC}"
+    echo -e "  ${CYAN}${server_url}${NC}"
+    echo ""
+    return
+  fi
+
+  echo ""
+  echo -e "  ${BOLD}Matrix ID      :${NC} ${CYAN}${matrix_id}${NC}"
+  echo -e "  ${BOLD}Homeserver URL :${NC} ${CYAN}${server_url}${NC}"
+  echo ""
+}
+
 cmd_user() {
   local subcmd="${1:-}"
   shift || true   # Remove the sub-command from the argument list.
@@ -399,8 +468,9 @@ cmd_user() {
     delete) cmd_user_delete "$@" ;;
     passwd) cmd_user_passwd "$@" ;;
     conf)   cmd_user_info   "$@" ;;
+    qr)     cmd_user_qr     "$@" ;;
     *)
-      echo -e "Available sub-commands: ${CYAN}add${NC}  ${CYAN}admin${NC}  ${CYAN}conf${NC}  ${CYAN}list${NC}  ${CYAN}delete${NC}  ${CYAN}passwd${NC}"
+      echo -e "Available sub-commands: ${CYAN}add${NC}  ${CYAN}admin${NC}  ${CYAN}conf${NC}  ${CYAN}qr${NC}  ${CYAN}list${NC}  ${CYAN}delete${NC}  ${CYAN}passwd${NC}"
       exit 1
       ;;
   esac

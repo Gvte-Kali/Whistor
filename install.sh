@@ -126,6 +126,25 @@ else
   die "Neither curl nor wget was found. Please install one of them."
 fi
 
+# ── qrencode ────────────────────────────────────────────────────────────────
+# Required by `whistor user qr` to print QR codes in the terminal.
+if ! command -v qrencode &>/dev/null; then
+  log "Installing qrencode..."
+  if command -v apt-get &>/dev/null; then
+    sudo apt-get update -qq && sudo apt-get install -y -qq qrencode
+  elif command -v brew &>/dev/null; then
+    brew install qrencode
+  elif command -v dnf &>/dev/null; then
+    sudo dnf install -y qrencode
+  elif command -v pacman &>/dev/null; then
+    sudo pacman -S --noconfirm qrencode
+  else
+    warn "Could not install qrencode automatically — package manager not recognized."
+    warn "Install it manually, then re-run: whistor user qr <username>"
+  fi
+fi
+command -v qrencode &>/dev/null && ok "qrencode: $(qrencode --version 2>&1 | head -1)"
+
 # =============================================================================
 # STEP 2 — DOWNLOAD / CLONE REPOSITORY
 # =============================================================================
