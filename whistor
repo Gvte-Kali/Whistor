@@ -170,6 +170,7 @@ cmd_help() {
   echo -e "  ${CYAN}whistor user admin${NC} <user>            Create an admin (interactive password)"
   echo -e "  ${CYAN}whistor user admin${NC} <user> <password> Create an admin (inline password)"
   echo -e "  ${CYAN}whistor user list${NC}                    List all registered users"
+  echo -e "  ${CYAN}whistor user conf${NC} <user>            Show connection info for a user"
   echo -e "  ${CYAN}whistor user delete${NC} <user>           Deactivate a user account"
   echo -e "  ${CYAN}whistor user passwd${NC} <user>           Change a user's password"
   echo ""
@@ -347,6 +348,46 @@ cmd_backup() {
 # =============================================================================
 # Dispatches to the appropriate user management sub-command.
 # =============================================================================
+# =============================================================================
+# COMMAND: user <username>
+# =============================================================================
+# Display connection information for a given user.
+# =============================================================================
+cmd_user_info() {
+  local username="${1:-}"
+  [[ -z "$username" ]] && die "Usage: whistor user conf <username>"
+
+  check_running
+
+  local onion
+  onion=$(get_onion)
+  [[ "$onion" == "unavailable" ]] && die ".onion address not available. Is the stack running?"
+
+  # Verify the user exists in the database
+  local exists
+  exists=$(docker exec "$SYNAPSE_CONTAINER" \
+    python3 -c "
+import sqlite3
+con = sqlite3.connect('/data/homeserver.db')
+row = con.execute(\"SELECT name FROM users WHERE name LIKE '@${username}:%'\").fetchone()
+print('yes' if row else 'no')
+con.close()
+" 2>/dev/null) || die "Could not query the database."
+  [[ "$exists" != "yes" ]] && die "User '@${username}' not found."
+
+  local matrix_id="@${username}:${onion}"
+  local server_url="http://${onion}:8448"
+
+  echo ""
+  echo -e "  ${BOLD}Connection info for ${CYAN}${username}${NC}"
+  echo ""
+  echo -e "  ${BOLD}Matrix ID        :${NC} ${CYAN}${matrix_id}${NC}"
+  echo -e "  ${BOLD}Homeserver URL   :${NC} ${CYAN}${server_url}${NC}"
+  echo ""
+  echo -e "  ${DIM}In Element: Sign in → Edit homeserver → enter the URL above${NC}"
+  echo ""
+}
+
 cmd_user() {
   local subcmd="${1:-}"
   shift || true   # Remove the sub-command from the argument list.
@@ -357,8 +398,9 @@ cmd_user() {
     list)   cmd_user_list        ;;
     delete) cmd_user_delete "$@" ;;
     passwd) cmd_user_passwd "$@" ;;
+    conf)   cmd_user_info   "$@" ;;
     *)
-      echo -e "Available sub-commands: ${CYAN}add${NC}  ${CYAN}admin${NC}  ${CYAN}list${NC}  ${CYAN}delete${NC}  ${CYAN}passwd${NC}"
+      echo -e "Available sub-commands: ${CYAN}add${NC}  ${CYAN}admin${NC}  ${CYAN}conf${NC}  ${CYAN}list${NC}  ${CYAN}delete${NC}  ${CYAN}passwd${NC}"
       exit 1
       ;;
   esac
