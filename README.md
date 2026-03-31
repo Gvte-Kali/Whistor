@@ -206,6 +206,10 @@ Matrix client → SOCKS5 127.0.0.1:PORT → Tor network → .onion → Synapse
 
 ### Linux
 
+The recommended client is **Element Desktop via Flatpak** — it works on every distro
+and desktop environment (GNOME, KDE, XFCE...) with a single install command,
+and supports a built-in proxy configuration.
+
 **1. Install the Tor daemon**
 
 ```bash
@@ -222,34 +226,88 @@ sudo dnf install tor
 sudo systemctl enable --now tor
 ```
 
-Tor exposes a SOCKS5 proxy on `127.0.0.1:9050`, runs in the background, and starts at boot. ✅ Zero daily friction.
+**2. Fix the Tor system configuration**
 
-**2. Install Element Desktop**
+The default `/etc/tor/torrc` on some distributions tries to bind a DNS listener
+on port 5353 (a privileged port), which causes Tor to fail at startup.
+Edit the config to disable it — only the SOCKS5 port is needed:
 
 ```bash
-# Flatpak (recommended, works on all distros)
-flatpak install flathub im.riot.Riot
-
-# Snap
-snap install element-desktop
-
-# AppImage / .deb
-# https://element.io/download
+sudo nano /etc/tor/torrc
 ```
 
-**3. Configure proxy in Element**
+Comment out or remove these lines if present:
+
+```
+# DNSPort 127.0.0.1:5353
+# TransPort 127.0.0.1:9040
+```
+
+Make sure this line is present and uncommented:
+
+```
+SocksPort 9050
+```
+
+Then restart Tor and verify it is running:
+
+```bash
+sudo systemctl restart tor
+sudo systemctl status tor
+```
+
+Tor exposes a SOCKS5 proxy on `127.0.0.1:9050`, runs in the background, and starts at boot. ✅ Zero daily friction.
+
+**3. Install Element Desktop via Flatpak**
+
+Flatpak works on all distros. If Flatpak is not installed yet:
+
+```bash
+# Debian / Ubuntu
+sudo apt install flatpak
+
+# Arch Linux
+sudo pacman -S flatpak
+
+# Fedora — already installed by default
+```
+
+Add Flathub and install Element:
+
+```bash
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak install flathub im.riot.Riot
+```
+
+**4. Forward all Element traffic through Tor permanently**
+
+Flatpak sandboxes apps, so the system proxy settings are not applied automatically.
+Use `flatpak override` to inject the Tor proxy for every Element launch — from the
+app menu or the terminal:
+
+```bash
+flatpak override --user --env=ALL_PROXY=socks5h://127.0.0.1:9050 im.riot.Riot
+```
+
+Verify the override is active:
+
+```bash
+flatpak override --user --show im.riot.Riot
+```
+
+To remove it later:
+
+```bash
+flatpak override --user --unset-env=ALL_PROXY im.riot.Riot
+```
+
+**5. Configure proxy in Element**
 - Settings → General → **Proxy**
 - `SOCKS5` / `127.0.0.1` / `9050`
 
-**4. Connect**
+**6. Connect**
 - "Sign in" → "Edit" → `http://YOUR_ADDRESS.onion:8448`
-
-> Alternative — launch any client via environment variable (no proxy config needed in the app):
-> ```bash
-> ALL_PROXY=socks5h://127.0.0.1:9050 element-desktop
-> ALL_PROXY=socks5h://127.0.0.1:9050 nheko
-> ALL_PROXY=socks5h://127.0.0.1:9050 gomuks
-> ```
+- Enter your username and password
 
 ---
 
