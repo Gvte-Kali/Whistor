@@ -44,7 +44,7 @@ CONFIG_FILE="/data/homeserver.yaml"
 
 # Path to the .onion hostname file written by the Tor container.
 # This file is created by Tor once the hidden service key pair is generated.
-ONION_HOSTNAME_FILE="/tor-hs/hostname"
+ONION_HOSTNAME_FILE="/tor-hs/synapse/hostname"
 
 # Path to the Synapse logging configuration file.
 LOG_CONFIG_FILE="/data/log.config"

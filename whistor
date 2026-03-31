@@ -27,7 +27,7 @@ set -euo pipefail
 
 # Installation directory — can be overridden by setting WHISTOR_DIR.
 # install.sh patches this default value to the actual installation path.
-INSTALL_DIR="${WHISTOR_DIR:-$HOME/whistor}"
+INSTALL_DIR="${WHISTOR_DIR:-/workspaces/Whistor}"
 
 # Path to the Docker Compose file.
 COMPOSE_FILE="${INSTALL_DIR}/docker-compose.yml"
@@ -100,7 +100,7 @@ check_running() {
 # =============================================================================
 get_onion() {
   docker exec "$TOR_CONTAINER" \
-    cat /var/lib/tor/hidden_service/hostname 2>/dev/null \
+    cat /var/lib/tor/hidden_service/synapse/hostname 2>/dev/null \
     | tr -d '[:space:]' \
     || echo "unavailable"
 }
@@ -148,7 +148,7 @@ cmd_help() {
   echo "  ╚███╔███╔╝██║  ██║██║███████║   ██║   ╚██████╔╝██║  ██║"
   echo "   ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝╚══════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝"
   echo -e "${NC}"
-  echo -e "  Private Matrix server over Tor · ${DIM}${onion}${NC}"
+  echo -e "  Private Matrix server over Tor · ${DIM}http://${onion}:8448${NC}"
   echo ""
 
   echo -e "  ${BOLD}USAGE${NC}"
@@ -232,7 +232,7 @@ cmd_status() {
   local onion
   onion=$(get_onion)
   if [[ "$onion" != "unavailable" ]]; then
-    ok ".onion address: ${BOLD}${onion}${NC}"
+    ok "Homeserver URL: ${BOLD}http://${onion}:8448${NC}"
   else
     warn ".onion address not available (is Tor still bootstrapping?)"
   fi
@@ -398,7 +398,7 @@ cmd_user_add() {
 
   info "Creating user @${username}..."
   register_user "$username" "$password" "--no-admin"
-  ok "User created: ${BOLD}@${username}:$(get_onion)${NC}"
+  ok "User created: ${BOLD}@${username}:$(get_onion)${NC}  →  http://$(get_onion):8448${NC}"
 }
 
 # =============================================================================
@@ -431,7 +431,7 @@ cmd_user_admin() {
 
   info "Creating admin @${username}..."
   register_user "$username" "$password" "--admin"
-  ok "Admin created: ${BOLD}@${username}:$(get_onion)${NC}"
+  ok "Admin created: ${BOLD}@${username}:$(get_onion)${NC}  →  http://$(get_onion):8448${NC}"
 }
 
 # =============================================================================
@@ -450,17 +450,36 @@ cmd_user_list() {
   # Query the users table.
   # Columns: name, admin (1=yes), deactivated (1=yes), creation_ts (unix timestamp)
   # Results are ordered by creation date, newest first.
+  local onion
+  onion=$(get_onion)
+  local base_url="http://${onion}:8448"
+
   docker exec "$SYNAPSE_CONTAINER" \
-    sqlite3 /data/homeserver.db \
-    "SELECT name, admin, deactivated, datetime(creation_ts, 'unixepoch') FROM users ORDER BY creation_ts DESC;" \
-    2>/dev/null \
-  | awk -F'|' '{
-      # Map the numeric flags to human-readable labels.
-      status = ($3 == "1") ? "deactivated" : "active"
-      role   = ($2 == "1") ? "admin" : "user"
-      # Print in fixed-width columns for readability.
-      printf "  %-45s  %-7s  %-11s  %s\n", $1, role, status, $4
-    }' \
+    python3 -c "
+import sqlite3
+con = sqlite3.connect('/data/homeserver.db')
+rows = con.execute('SELECT name, admin, deactivated, datetime(creation_ts, \"unixepoch\") FROM users ORDER BY creation_ts DESC').fetchall()
+base_url = '${base_url}'
+
+col1, col2, col3, col4 = 'User', 'Role', 'Created', 'Homeserver URL'
+w1 = max(len(col1), max((len(r[0]) for r in rows), default=0))
+w2 = max(len(col2), 5)
+w3 = max(len(col3), 19)
+w4 = max(len(col4), len(base_url))
+
+sep = f'  +-{\"-\"*w1}-+-{\"-\"*w2}-+-{\"-\"*w3}-+-{\"-\"*w4}-+'
+print(sep)
+print(f'  | {col1:<{w1}} | {col2:<{w2}} | {col3:<{w3}} | {col4:<{w4}} |')
+print(sep)
+for name, admin, deactivated, created in rows:
+    role = 'admin' if admin else 'user'
+    if deactivated:
+        role += ' ✘'
+    print(f'  | {name:<{w1}} | {role:<{w2}} | {created:<{w3}} | {base_url:<{w4}} |')
+print(sep)
+print(f'  {len(rows)} user(s)')
+con.close()
+" 2>/dev/null \
   || die "Could not read the Synapse database."
 
   echo ""
@@ -492,8 +511,12 @@ cmd_user_delete() {
   # Set deactivated=1 for all users matching the username prefix.
   # We use LIKE '@username:%' to match the full Matrix ID format (@user:server).
   docker exec "$SYNAPSE_CONTAINER" \
-    sqlite3 /data/homeserver.db \
-    "UPDATE users SET deactivated=1 WHERE name LIKE '@${username}:%';"
+    python3 -c "
+import sqlite3
+con = sqlite3.connect('/data/homeserver.db')
+con.execute(\"UPDATE users SET deactivated=1 WHERE name LIKE '@${username}:%'\")
+con.commit(); con.close()
+" 2>/dev/null || die "Could not update the database."
 
   ok "@${username} has been deactivated."
 }
@@ -536,8 +559,12 @@ print(asyncio.run(hash_password('${password}')))
 
   # Write the new hash to the database.
   docker exec "$SYNAPSE_CONTAINER" \
-    sqlite3 /data/homeserver.db \
-    "UPDATE users SET password_hash='${hashed}' WHERE name LIKE '@${username}:%';"
+    python3 -c "
+import sqlite3
+con = sqlite3.connect('/data/homeserver.db')
+con.execute(\"UPDATE users SET password_hash='${hashed}' WHERE name LIKE '@${username}:%'\")
+con.commit(); con.close()
+" 2>/dev/null || die "Could not update the database."
 
   ok "Password updated for @${username}."
 }
