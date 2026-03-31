@@ -1,0 +1,663 @@
+#!/bin/bash
+# =============================================================================
+# install.sh — whistor one-liner installer
+# =============================================================================
+#
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/YOUR_USER/whistor/main/install.sh | bash
+#
+# What this script does, in order:
+#   1. Check that Docker and Docker Compose are installed and running
+#   2. Clone the whistor repository (or fetch files individually if git is absent)
+#   3. Install the `whistor` CLI command into /usr/local/bin
+#   4. Start the Docker Compose stack (Synapse + Tor containers)
+#   5. Wait for Tor to generate the hidden service .onion address
+#   6. Extract the registration shared secret from the running Synapse config
+#   7. Generate the whistor.config file on the host with all client parameters
+#   8. Print a summary in the terminal
+#
+# Environment variables you can override before running:
+#   WHISTOR_DIR   — where to install the project (default: $HOME/whistor)
+#
+# =============================================================================
+
+# Exit immediately on error, treat unset variables as errors,
+# and propagate pipe failures correctly.
+set -euo pipefail
+
+# =============================================================================
+# CONFIGURATION — Edit these before pushing to GitHub
+# =============================================================================
+
+# GitHub repository URL (used by git clone)
+REPO_URL="https://github.com/YOUR_USER/whistor"
+
+# Raw base URL (used as fallback when git is not available)
+RAW_URL="https://raw.githubusercontent.com/YOUR_USER/whistor/main"
+
+# Installation directory on the host machine.
+# Can be overridden by setting WHISTOR_DIR before running the script.
+INSTALL_DIR="${WHISTOR_DIR:-$HOME/whistor}"
+
+# Path where the client configuration file will be written after first boot.
+CONFIG_OUTPUT="${INSTALL_DIR}/whistor.config"
+
+# =============================================================================
+# TERMINAL COLORS AND LOGGING HELPERS
+# =============================================================================
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+BOLD='\033[1m'
+DIM='\033[2m'
+NC='\033[0m'   # No Color — resets all attributes
+
+# Logging helpers: each writes a prefixed, colored line to stdout (or stderr for errors).
+log()     { echo -e "${CYAN}[whistor]${NC} $*"; }
+ok()      { echo -e "${GREEN}[✔]${NC} $*"; }
+warn()    { echo -e "${YELLOW}[!]${NC} $*"; }
+error()   { echo -e "${RED}[✘] ERROR:${NC} $*" >&2; }
+die()     { error "$*"; exit 1; }
+
+# section() prints a bold blue separator header for each major step.
+section() { echo -e "\n${BOLD}${BLUE}── $* ${NC}"; }
+
+# =============================================================================
+# BANNER
+# =============================================================================
+
+echo -e "${BOLD}${MAGENTA}"
+cat << 'BANNER'
+  ╔═══════════════════════════════════════════════════╗
+  ║              w h i s t o r                       ║
+  ║      Matrix homeserver over Tor hidden service    ║
+  ╚═══════════════════════════════════════════════════╝
+BANNER
+echo -e "${NC}"
+
+# =============================================================================
+# STEP 1 — DEPENDENCY CHECKS
+# =============================================================================
+# We need Docker, a running Docker daemon, Docker Compose (v1 or v2),
+# and at least one of curl or wget to fetch files.
+# =============================================================================
+section "Checking dependencies"
+
+# ── Docker binary ──────────────────────────────────────────────────────────
+if ! command -v docker &>/dev/null; then
+  die "Docker is not installed.\n  → Install it from: https://docs.docker.com/get-docker/"
+fi
+
+# ── Docker daemon ──────────────────────────────────────────────────────────
+# `docker info` fails if the daemon is not running.
+if ! docker info &>/dev/null 2>&1; then
+  die "Docker daemon is not running.\n  → Start it with: sudo systemctl start docker"
+fi
+ok "Docker: $(docker --version)"
+
+# ── Docker Compose ─────────────────────────────────────────────────────────
+# Docker Compose v2 ships as a CLI plugin (`docker compose`).
+# Docker Compose v1 is a standalone binary (`docker-compose`).
+# We detect which one is available and store the command in COMPOSE_CMD.
+if docker compose version &>/dev/null 2>&1; then
+  COMPOSE_CMD="docker compose"
+  ok "Docker Compose (plugin): $(docker compose version)"
+elif command -v docker-compose &>/dev/null; then
+  COMPOSE_CMD="docker-compose"
+  ok "Docker Compose (standalone): $(docker-compose --version)"
+else
+  die "Docker Compose is not installed.\n  → Install it from: https://docs.docker.com/compose/install/"
+fi
+
+# ── curl or wget ────────────────────────────────────────────────────────────
+# We need one of these to fetch individual files in the fallback path
+# when git is not available.
+if command -v curl &>/dev/null; then
+  FETCH_CMD="curl -fsSL"
+  ok "curl is available"
+elif command -v wget &>/dev/null; then
+  FETCH_CMD="wget -qO-"
+  ok "wget is available"
+else
+  die "Neither curl nor wget was found. Please install one of them."
+fi
+
+# =============================================================================
+# STEP 2 — DOWNLOAD / CLONE REPOSITORY
+# =============================================================================
+# Preferred path: clone with git (gets all files in one shot, enables updates).
+# Fallback path:  fetch each file individually via curl/wget.
+# =============================================================================
+section "Downloading project files"
+
+# Create the directory structure regardless of which download method we use.
+mkdir -p "$INSTALL_DIR"/{config,scripts}
+
+if command -v git &>/dev/null; then
+  # git is available — use it.
+  if [[ -d "$INSTALL_DIR/.git" ]]; then
+    # The repo already exists locally; just pull the latest changes.
+    warn "Existing repository found — pulling latest changes..."
+    git -C "$INSTALL_DIR" pull --ff-only
+  else
+    # Fresh clone into the install directory.
+    log "Cloning $REPO_URL into $INSTALL_DIR..."
+    git clone "$REPO_URL" "$INSTALL_DIR"
+  fi
+else
+  # git is not available — fetch each file individually.
+  log "git not found — fetching files one by one..."
+
+  # Helper: download a single file from the raw GitHub URL.
+  # Arguments:
+  #   $1 — path relative to the repo root (used to build the remote URL)
+  #   $2 — destination path relative to INSTALL_DIR
+  fetch_file() {
+    local remote_path="$1"
+    local local_path="$2"
+    log "  ↓ $local_path"
+    $FETCH_CMD "${RAW_URL}/${remote_path}" > "${INSTALL_DIR}/${local_path}"
+  }
+
+  fetch_file "docker-compose.yml"              "docker-compose.yml"
+  fetch_file "config/torrc.template"           "config/torrc.template"
+  fetch_file "config/homeserver.template.yaml" "config/homeserver.template.yaml"
+  fetch_file "scripts/entrypoint.sh"           "scripts/entrypoint.sh"
+  fetch_file "whistor"                         "whistor"
+fi
+
+# Ensure all shell scripts are executable.
+chmod +x "$INSTALL_DIR/scripts/entrypoint.sh"
+ok "Project files are ready in $INSTALL_DIR"
+
+# =============================================================================
+# STEP 3 — INSTALL THE whistor CLI COMMAND
+# =============================================================================
+# We copy the `whistor` script into /usr/local/bin so it is available
+# system-wide without needing to prefix it with a path.
+#
+# We first patch the script so its INSTALL_DIR default points to the actual
+# installation path chosen by this run, instead of the generic $HOME/whistor.
+# =============================================================================
+section "Installing the whistor CLI command"
+
+WHISTOR_BIN="${INSTALL_DIR}/whistor"
+WHISTOR_DEST="/usr/local/bin/whistor"
+
+if [[ -f "$WHISTOR_BIN" ]]; then
+  chmod +x "$WHISTOR_BIN"
+
+  # Patch the default INSTALL_DIR inside the whistor script so that it
+  # resolves to the directory we actually installed into.
+  # This sed call replaces the fallback value in the WHISTOR_DIR variable.
+  sed -i "s|WHISTOR_DIR:-\$HOME/whistor|WHISTOR_DIR:-${INSTALL_DIR}|g" \
+    "$WHISTOR_BIN" 2>/dev/null || true
+
+  # Try to install to /usr/local/bin — first with passwordless sudo,
+  # then by checking write permission directly, then fall back gracefully.
+  if sudo -n true 2>/dev/null; then
+    # sudo is available without a password prompt (e.g. in CI or root session).
+    sudo cp "$WHISTOR_BIN" "$WHISTOR_DEST"
+    sudo chmod +x "$WHISTOR_DEST"
+    ok "CLI installed: $WHISTOR_DEST"
+  elif [[ -w "/usr/local/bin" ]]; then
+    # Current user already has write access to /usr/local/bin.
+    cp "$WHISTOR_BIN" "$WHISTOR_DEST"
+    chmod +x "$WHISTOR_DEST"
+    ok "CLI installed: $WHISTOR_DEST"
+  else
+    # No write access — inform the user and add a temporary PATH fallback
+    # so the command still works for the duration of this shell session.
+    warn "Insufficient permissions to write to /usr/local/bin."
+    warn "To install manually, run:"
+    warn "  sudo cp ${WHISTOR_BIN} /usr/local/bin/whistor"
+    warn "  sudo chmod +x /usr/local/bin/whistor"
+    # Temporarily prepend the install dir to PATH so `whistor` resolves now.
+    export PATH="${INSTALL_DIR}:$PATH"
+    ok "CLI available in this session via PATH (temporary)."
+  fi
+else
+  warn "whistor script not found in ${INSTALL_DIR} — CLI install skipped."
+fi
+
+# =============================================================================
+# STEP 4 — START THE DOCKER COMPOSE STACK
+# =============================================================================
+# This brings up two containers:
+#   - whistor-tor-daemon  : Tor daemon that creates the hidden service
+#   - synapse-server      : Matrix Synapse homeserver
+#
+# The Synapse container runs our custom entrypoint.sh on first boot,
+# which waits for Tor, reads the .onion address, and generates the config.
+# =============================================================================
+section "Starting the Docker stack"
+
+# Move into the install directory so docker compose finds the compose file.
+cd "$INSTALL_DIR"
+
+$COMPOSE_CMD up -d
+ok "Stack started"
+
+# =============================================================================
+# STEP 5 — WAIT FOR THE .ONION ADDRESS
+# =============================================================================
+# Tor needs a few seconds to bootstrap and generate the hidden service key pair.
+# The resulting .onion hostname is written to:
+#   /var/lib/tor/hidden_service/hostname  (inside the Tor container)
+#
+# We poll this file every 2 seconds for up to 120 seconds total.
+# =============================================================================
+section "Waiting for the .onion address"
+
+log "Polling Tor for the hidden service hostname (up to 120s)..."
+
+ONION_ADDRESS=""
+for i in $(seq 1 60); do
+  # Try to read the hostname file from inside the Tor container.
+  # Suppress all errors — the file won't exist during the first few seconds.
+  ONION=$(docker exec whistor-tor-daemon \
+    cat /var/lib/tor/hidden_service/hostname 2>/dev/null \
+    | tr -d '[:space:]' || true)
+
+  # Validate: non-empty and ends with .onion (basic sanity check).
+  if [[ -n "$ONION" && "$ONION" == *.onion ]]; then
+    ONION_ADDRESS="$ONION"
+    break
+  fi
+
+  # Show a progress indicator on the same line while waiting.
+  printf "\r  ${DIM}Attempt %d/60 — waiting...${NC}" "$i"
+  sleep 2
+done
+echo ""   # Move to a new line after the progress indicator.
+
+# Handle the case where Tor never produced a hostname.
+if [[ -z "$ONION_ADDRESS" ]]; then
+  warn ".onion address is not available yet."
+  warn "The config file will be incomplete. Re-run: whistor config"
+  # Use a placeholder so the rest of the script can still write the config.
+  ONION_ADDRESS="ONION_ADDRESS_NOT_YET_AVAILABLE"
+else
+  ok ".onion address: ${BOLD}${ONION_ADDRESS}${NC}"
+fi
+
+# =============================================================================
+# STEP 6 — RETRIEVE THE REGISTRATION SHARED SECRET
+# =============================================================================
+# The registration_shared_secret is generated randomly by entrypoint.sh
+# on first boot and written into /data/homeserver.yaml inside the Synapse
+# container. We extract it here so we can include it in the config file.
+#
+# We poll for up to 60 seconds because Synapse may still be initialising.
+# =============================================================================
+
+REGISTRATION_SECRET=""
+for i in $(seq 1 30); do
+  SECRET=$(docker exec synapse-server \
+    grep -oP '(?<=registration_shared_secret: ).*' /data/homeserver.yaml \
+    2>/dev/null | tr -d '"' || true)
+
+  if [[ -n "$SECRET" ]]; then
+    REGISTRATION_SECRET="$SECRET"
+    break
+  fi
+  sleep 2
+done
+
+# Provide a fallback message if Synapse hasn't written the config yet.
+if [[ -z "$REGISTRATION_SECRET" ]]; then
+  REGISTRATION_SECRET="(retrieve with: docker exec synapse-server grep registration_shared_secret /data/homeserver.yaml)"
+fi
+
+# =============================================================================
+# STEP 7 — GENERATE whistor.config ON THE HOST
+# =============================================================================
+# This plain-text file is the single source of truth for anyone who needs
+# to connect a Matrix client to this server. It contains:
+#   - The .onion address
+#   - Universal connection parameters
+#   - Per-platform client setup instructions (Android, iOS, Linux, macOS, Windows)
+#   - Admin commands
+#   - Backup/restore instructions
+#
+# The file is chmod 600 because it contains the registration shared secret.
+# =============================================================================
+section "Generating client configuration file"
+
+# Capture metadata for the file header.
+GENERATED_AT=$(date '+%Y-%m-%d %H:%M:%S %Z')
+HOST_OS=$(uname -s)
+HOST_ARCH=$(uname -m)
+
+cat > "$CONFIG_OUTPUT" << CONFIGEOF
+################################################################################
+##                                                                            ##
+##                          W H I S T O R                                    ##
+##                    Client Configuration File                               ##
+##                                                                            ##
+##  Generated : ${GENERATED_AT}
+##  Host      : $(hostname) (${HOST_OS} ${HOST_ARCH})
+##  Directory : ${INSTALL_DIR}
+##                                                                            ##
+##  ⚠  This file contains secrets — do NOT share it publicly.               ##
+##                                                                            ##
+################################################################################
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                          YOUR SERVER ADDRESS                                ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Homeserver (Matrix server name) : ${ONION_ADDRESS}
+  Client connection URL           : http://${ONION_ADDRESS}:8448
+
+  ⚠  This address is ONLY reachable over Tor.
+     Your Matrix client MUST route traffic through a local Tor SOCKS5 proxy.
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    UNIVERSAL CONNECTION PARAMETERS                          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │  Homeserver URL   : http://${ONION_ADDRESS}:8448
+  │  Server name      : ${ONION_ADDRESS}
+  │  Proxy type       : SOCKS5
+  │  Proxy host       : 127.0.0.1
+  │  Proxy port       : see per-OS section below
+  │  TLS/SSL          : NO  (Tor encrypts the transport natively)
+  │  Federation       : DISABLED (isolated private server)
+  └─────────────────────────────────────────────────────────────┘
+
+  → Accounts must be created by an admin using the commands below.
+    Public registration is disabled by default.
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                            ADMIN COMMANDS                                   ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  # Create a regular user
+  whistor user add USERNAME PASSWORD
+
+  # Create an admin user
+  whistor user admin USERNAME PASSWORD
+
+  # List all users
+  whistor user list
+
+  # Deactivate a user
+  whistor user delete USERNAME
+
+  # Change a password
+  whistor user passwd USERNAME
+
+  # View live logs
+  whistor logs
+
+  # Stop the server
+  whistor stop
+
+  # Registration shared secret (for API calls)
+  ${REGISTRATION_SECRET}
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                  CLIENT SETUP — PER PLATFORM                                ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │  ANDROID                                                                 │
+  ├──────────────────────────────────────────────────────────────────────────┤
+  │                                                                          │
+  │  Step 1 — Install Orbot (Tor proxy for Android)                          │
+  │    Play Store : https://play.google.com/store/apps/details?id=org.torproject.android
+  │    F-Droid    : https://guardianproject.info/fdroid/                     │
+  │                                                                          │
+  │  Step 2 — Configure Orbot                                                │
+  │    • Enable VPN mode                                                     │
+  │    • Settings → check "Start on Boot"                                    │
+  │    • VPN apps list → add Element                                         │
+  │    • Tap Start                                                           │
+  │    ✅ Orbot will start automatically at boot — zero daily friction        │
+  │                                                                          │
+  │  Step 3 — Install Element                                                │
+  │    Play Store : https://play.google.com/store/apps/details?id=im.vector.app
+  │    F-Droid    : https://f-droid.org/packages/im.vector.app/              │
+  │                                                                          │
+  │  Step 4 — Connect Element                                                │
+  │    • "Sign in" → "Edit" → enter homeserver URL below                    │
+  │    • Homeserver : http://${ONION_ADDRESS}:8448
+  │    • Enter your username and password                                    │
+  │                                                                          │
+  │  Note: Orbot handles the proxy at VPN level — no proxy config needed    │
+  │        inside Element itself.                                            │
+  │                                                                          │
+  │  Proxy : SOCKS5 / 127.0.0.1 / 9050                                      │
+  │                                                                          │
+  └──────────────────────────────────────────────────────────────────────────┘
+
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │  iOS  (iPhone / iPad)                                                    │
+  ├──────────────────────────────────────────────────────────────────────────┤
+  │                                                                          │
+  │  Step 1 — Install Orbot                                                  │
+  │    App Store : https://apps.apple.com/app/orbot/id1609461976             │
+  │                                                                          │
+  │  Step 2 — Configure Orbot                                                │
+  │    • Enable VPN mode                                                     │
+  │    ⚠ On iOS, Orbot must be launched manually before using Element        │
+  │      (Apple restricts background VPN processes)                          │
+  │                                                                          │
+  │  Step 3 — Install Element                                                │
+  │    App Store : https://apps.apple.com/app/element/id1083446067           │
+  │                                                                          │
+  │  Step 4 — Enable proxy support in Element                                │
+  │    • Settings → Labs → enable "Proxy support"                            │
+  │    • Proxy : SOCKS5 / 127.0.0.1 / 9050                                  │
+  │                                                                          │
+  │  Step 5 — Connect Element                                                │
+  │    • "Sign in" → "Edit" → http://${ONION_ADDRESS}:8448
+  │    • Enter your username and password                                    │
+  │                                                                          │
+  │  Daily friction : 1 tap to launch Orbot before opening Element           │
+  │  Proxy : SOCKS5 / 127.0.0.1 / 9050                                      │
+  │                                                                          │
+  └──────────────────────────────────────────────────────────────────────────┘
+
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │  LINUX                                                                   │
+  ├──────────────────────────────────────────────────────────────────────────┤
+  │                                                                          │
+  │  Step 1 — Install and enable the Tor daemon                              │
+  │    Debian/Ubuntu : sudo apt install tor                                  │
+  │    Arch Linux    : sudo pacman -S tor                                    │
+  │    Fedora        : sudo dnf install tor                                  │
+  │    Then enable at boot:                                                  │
+  │      sudo systemctl enable --now tor                                     │
+  │    ✅ Runs in background — zero daily friction                            │
+  │                                                                          │
+  │  Step 2 — Install Element Desktop                                        │
+  │    Flatpak : flatpak install flathub im.riot.Riot                        │
+  │    Snap    : snap install element-desktop                                │
+  │    AppImage: https://element.io/download                                 │
+  │                                                                          │
+  │  Step 3 — Configure proxy in Element                                     │
+  │    Settings → General → Proxy                                            │
+  │    Type: SOCKS5 | Host: 127.0.0.1 | Port: 9050                          │
+  │                                                                          │
+  │  Step 4 — Connect                                                        │
+  │    "Sign in" → "Edit" → http://${ONION_ADDRESS}:8448
+  │                                                                          │
+  │  Alternative — launch any client via environment variable:               │
+  │    ALL_PROXY=socks5h://127.0.0.1:9050 element-desktop                   │
+  │    ALL_PROXY=socks5h://127.0.0.1:9050 nheko                             │
+  │    ALL_PROXY=socks5h://127.0.0.1:9050 gomuks                            │
+  │                                                                          │
+  │  Proxy : SOCKS5 / 127.0.0.1 / 9050                                      │
+  │                                                                          │
+  └──────────────────────────────────────────────────────────────────────────┘
+
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │  macOS                                                                   │
+  ├──────────────────────────────────────────────────────────────────────────┤
+  │                                                                          │
+  │  Option A — Homebrew (recommended, runs automatically in background)     │
+  │    brew install tor                                                      │
+  │    brew services start tor                                               │
+  │    ✅ Starts at login automatically — zero daily friction                 │
+  │    Proxy port : 9050                                                     │
+  │                                                                          │
+  │  Option B — Tor Browser (simpler install, manual launch)                 │
+  │    https://www.torproject.org/download/                                  │
+  │    Keep it running in the background while using Element.                │
+  │    Proxy port : 9150                                                     │
+  │                                                                          │
+  │  Step 2 — Install Element Desktop                                        │
+  │    https://element.io/download                                           │
+  │                                                                          │
+  │  Step 3 — Configure proxy in Element                                     │
+  │    Settings → General → Proxy                                            │
+  │    Type: SOCKS5 | Host: 127.0.0.1 | Port: 9050 (brew) or 9150 (Tor Browser)
+  │                                                                          │
+  │  Step 4 — Connect                                                        │
+  │    "Sign in" → "Edit" → http://${ONION_ADDRESS}:8448
+  │                                                                          │
+  └──────────────────────────────────────────────────────────────────────────┘
+
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │  WINDOWS                                                                 │
+  ├──────────────────────────────────────────────────────────────────────────┤
+  │                                                                          │
+  │  Option A — Tor Expert Bundle as a Windows service (recommended)         │
+  │    Download : https://www.torproject.org/download/tor/                   │
+  │    Extract to C:\tor, then open an admin terminal:                       │
+  │                                                                          │
+  │      cd C:\tor                                                           │
+  │      .\tor.exe --service install                                         │
+  │      net start tor                                                       │
+  │                                                                          │
+  │    ✅ Tor runs as a Windows service, starts at boot automatically         │
+  │    Proxy port : 9050                                                     │
+  │                                                                          │
+  │  Option B — Tor Browser (simpler, manual launch each session)            │
+  │    https://www.torproject.org/download/                                  │
+  │    Keep it running in the background while using Element.                │
+  │    ⚠ Must be launched manually each time                                 │
+  │    Proxy port : 9150                                                     │
+  │                                                                          │
+  │  Step 2 — Install Element Desktop                                        │
+  │    https://element.io/download                                           │
+  │                                                                          │
+  │  Step 3 — Configure proxy in Element                                     │
+  │    Settings → General → Proxy                                            │
+  │    Type: SOCKS5 | Host: 127.0.0.1 | Port: 9050 (service) or 9150 (Tor Browser)
+  │                                                                          │
+  │  Step 4 — Connect                                                        │
+  │    "Sign in" → "Edit" → http://${ONION_ADDRESS}:8448
+  │                                                                          │
+  └──────────────────────────────────────────────────────────────────────────┘
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                           QUICK REFERENCE TABLE                             ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Platform  │ Matrix Client    │ Tor method              │ Port  │ Daily friction
+  ──────────┼──────────────────┼─────────────────────────┼───────┼───────────────
+  Android   │ Element          │ Orbot (VPN + boot)      │ 9050  │ None ✅
+  iOS       │ Element          │ Orbot (VPN mode)        │ 9050  │ 1 tap
+  Linux     │ Element / Nheko  │ tor daemon (systemd)    │ 9050  │ None ✅
+  macOS     │ Element          │ brew install tor        │ 9050  │ None ✅
+  macOS     │ Element          │ Tor Browser             │ 9150  │ Manual launch
+  Windows   │ Element          │ Tor Expert Bundle (svc) │ 9050  │ None ✅
+  Windows   │ Element          │ Tor Browser             │ 9150  │ Manual launch
+  ──────────┴──────────────────┴─────────────────────────┴───────┴───────────────
+
+  Homeserver URL to enter in ALL clients:
+  → http://${ONION_ADDRESS}:8448
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                            BACKUP & RESTORE                                 ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  ⚠  The tor-data volume holds the PRIVATE KEYS of your hidden service.
+     Deleting it means PERMANENT loss of your .onion address.
+
+  # Backup (both Tor keys and Synapse data)
+  docker run --rm \\
+    -v whistor_tor-data:/tor \\
+    -v whistor_synapse-data:/synapse \\
+    -v \$(pwd):/backup \\
+    alpine tar czf /backup/whistor-backup-\$(date +%Y%m%d).tar.gz /tor /synapse
+
+  # Or use the built-in command:
+  whistor backup
+
+  # Restore
+  docker run --rm \\
+    -v whistor_tor-data:/tor \\
+    -v whistor_synapse-data:/synapse \\
+    -v \$(pwd):/backup \\
+    alpine tar xzf /backup/whistor-backup-DATE.tar.gz -C /
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                              SECURITY NOTES                                 ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  • The Docker network is marked internal:true — containers have no outbound
+    internet access. Tor is the only way in or out.
+
+  • No ports are published on the host machine's network interface.
+
+  • Matrix federation is disabled: users can only communicate with other users
+    on THIS server. matrix.org and other servers are unreachable by design.
+
+  • Public registration is disabled. Only admins can create accounts.
+
+  • All secrets (registration key, macaroon key, form secret) are randomly
+    generated on first boot and never leave the server.
+
+  • Enable E2EE (end-to-end encryption) in your Matrix rooms for maximum
+    confidentiality — even the server cannot read encrypted messages.
+
+  • To update Synapse:
+      cd ${INSTALL_DIR} && whistor update
+
+################################################################################
+##  End of configuration file — whistor                                      ##
+################################################################################
+CONFIGEOF
+
+# Restrict file permissions: readable only by the owner (contains secrets).
+chmod 600 "$CONFIG_OUTPUT"
+ok "Configuration file written: ${BOLD}${CONFIG_OUTPUT}${NC}"
+
+# =============================================================================
+# STEP 8 — PRINT TERMINAL SUMMARY
+# =============================================================================
+echo ""
+echo -e "${BOLD}${GREEN}"
+echo "  ╔═══════════════════════════════════════════════════════════════╗"
+echo "  ║           Deployment completed successfully!                 ║"
+echo "  ╚═══════════════════════════════════════════════════════════════╝"
+echo -e "${NC}"
+echo -e "  ${BOLD}.onion address :${NC} ${CYAN}${ONION_ADDRESS}${NC}"
+echo -e "  ${BOLD}Config file    :${NC} ${CYAN}${CONFIG_OUTPUT}${NC}"
+echo -e "  ${BOLD}Project dir    :${NC} ${CYAN}${INSTALL_DIR}${NC}"
+echo ""
+echo -e "  ${BOLD}Next step — create your first account:${NC}"
+echo -e "  ${DIM}whistor user add USERNAME PASSWORD${NC}"
+echo ""
+echo -e "  ${BOLD}Read the full config file:${NC}"
+echo -e "  ${DIM}cat ${CONFIG_OUTPUT}${NC}"
+echo ""
+echo -e "  ${BOLD}All available commands:${NC}"
+echo -e "  ${DIM}whistor help${NC}"
+echo ""

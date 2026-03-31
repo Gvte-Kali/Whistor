@@ -1,0 +1,44 @@
+version: "3.8"
+
+networks:
+  matrix-internal:
+    driver: bridge
+    internal: true  # No external routing — fully isolated
+
+volumes:
+  synapse-data:
+  tor-data:
+
+services:
+
+  tor:
+    image: goldy/tor-hidden-service:latest
+    container_name: whistor-tor-daemon
+    restart: unless-stopped
+    networks:
+      - matrix-internal
+    volumes:
+      - tor-data:/var/lib/tor/hidden_service
+      - ./config/torrc.template:/etc/tor/torrc:ro
+    environment:
+      # goldy/tor-hidden-service convention: SERVICE_NAME_PORTS=public:container:port
+      MATRIX_PORTS: "8448:synapse:8008"
+    depends_on:
+      - synapse
+
+  synapse:
+    image: matrixdotorg/synapse:latest
+    container_name: synapse-server
+    restart: unless-stopped
+    networks:
+      - matrix-internal
+    volumes:
+      - synapse-data:/data
+      - tor-data:/tor-hs:ro          # Read the .onion hostname at init
+      - ./scripts/entrypoint.sh:/entrypoint-custom.sh:ro
+      - ./config/homeserver.template.yaml:/config/homeserver.template.yaml:ro
+    environment:
+      SYNAPSE_CONFIG_PATH: /data/homeserver.yaml
+    # Override default entrypoint to run our init logic first
+    entrypoint: ["/bin/bash", "/entrypoint-custom.sh"]
+    # Do NOT publish any ports to the host — Tor is the only ingress

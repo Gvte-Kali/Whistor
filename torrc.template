@@ -1,0 +1,13 @@
+## torrc — Tor Hidden Service config for synapse-tor
+## This file is mounted read-only into the Tor container.
+
+# Run Tor as a relay client (no relay, only hidden service)
+SocksPort 0
+Log notice stdout
+
+# Hidden service definition
+HiddenServiceDir /var/lib/tor/hidden_service
+HiddenServiceVersion 3
+
+# Forward port 8448 (Matrix federation/client) → synapse container port 8008
+HiddenServicePort 8448 synapse:8008
