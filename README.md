@@ -8,7 +8,8 @@
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Gvte-Kali/Whistor/refs/heads/main/install.sh | bash
 ```
-
+### Use Client : 
+https://github.com/Gvte-Kali/element-tor
 ---
 
 ## Table of Contents
