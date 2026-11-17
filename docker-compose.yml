@@ -3,6 +3,8 @@ networks:
   matrix-internal:
     driver: bridge
     internal: true  # No external routing — Synapse fully isolated
+  admin-access:
+    driver: bridge  # LAN / Tailscale access to the management UI
   tor-external:
     driver: bridge   # Tor needs internet to reach the Tor network
 
@@ -43,4 +45,26 @@ services:
       SYNAPSE_CONFIG_PATH: /data/homeserver.yaml
     # Override default entrypoint to run our init logic first
     entrypoint: ["/bin/bash", "/entrypoint-custom.sh"]
-    # Do NOT publish any ports to the host — Tor is the only ingress
+    # Synapse has no host port; Tor and the admin proxy reach it internally.
+
+
+  admin:
+    image: whistor-admin:local
+    build:
+      context: ./admin
+    container_name: whistor-admin
+    restart: unless-stopped
+    networks:
+      - matrix-internal
+      - admin-access
+    ports:
+      - "${WHISTOR_ADMIN_BIND:-0.0.0.0}:${WHISTOR_ADMIN_PORT:-8080}:8080"
+    depends_on:
+      - synapse
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    security_opt:
+      - no-new-privileges:true

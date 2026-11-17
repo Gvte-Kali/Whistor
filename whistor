@@ -164,6 +164,8 @@ cmd_help() {
   echo -e "  ${CYAN}whistor update${NC}             Pull latest Docker images and restart"
   echo ""
 
+  echo -e "  ${CYAN}whistor admin${NC}              Show web administration access options"
+  echo ""
   echo -e "  ${BOLD}USERS${NC}"
   echo -e "  ${CYAN}whistor user add${NC} <user>              Create a user (interactive password)"
   echo -e "  ${CYAN}whistor user add${NC} <user> <password>   Create a user (inline password)"
@@ -191,7 +193,7 @@ cmd_help() {
 # =============================================================================
 cmd_start() {
   info "Starting the whistor stack..."
-  compose up -d
+  compose up -d --build
   ok "Stack started"
   cmd_status
 }
@@ -262,7 +264,8 @@ cmd_logs() {
 # =============================================================================
 cmd_update() {
   info "Pulling latest Docker images..."
-  compose pull
+  compose pull synapse tor
+  compose build --pull admin
 
   info "Recreating containers with updated images..."
   compose up -d
@@ -689,6 +692,25 @@ con.commit(); con.close()
 # =============================================================================
 
 # Read the command (default to "help" if no arguments were provided).
+cmd_admin() {
+  local port="${WHISTOR_ADMIN_PORT:-8080}"
+  local published
+  published=$(compose port admin 8080 2>/dev/null || true)
+  [[ -n "$published" ]] && port="${published##*:}"
+  cat <<EOF
+Whistor web administration (open on your CLIENT PC):
+  LAN:       http://SERVER_LAN_IP:${port}
+  Tailscale: http://SERVER_TAILSCALE_IP:${port}
+  SSH:       ssh -N -L ${port}:127.0.0.1:${port} USER@SERVER
+             then open http://localhost:${port}
+
+Sign in with a Synapse administrator account.
+Create the first one on the server: whistor user admin USERNAME
+For HTTPS via Tailscale Serve: tailscale serve --bg http://127.0.0.1:${port}
+Custom ports/bind addresses: see .env and README.md in ${INSTALL_DIR}.
+EOF
+}
+
 CMD="${1:-help}"
 
 # Remove the command from the argument list so remaining args can be passed
@@ -705,6 +727,7 @@ case "$CMD" in
   onion)          cmd_onion ;;
   config)         cmd_config ;;
   backup)         cmd_backup ;;
+  admin)          cmd_admin ;;
   user)           cmd_user "$@" ;;
   help|--help|-h) cmd_help ;;
   *)

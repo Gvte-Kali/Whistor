@@ -1,7 +1,7 @@
 # Whistor
 
-> A self-hosted Matrix (Synapse) homeserver exposed **exclusively** over a Tor v3 hidden service.  
-> No open ports. No DNS. No clearnet exposure. One command to deploy.
+> A self-hosted Matrix (Synapse) homeserver with a Tor v3 hidden service and optional network administration access.
+> Matrix over Tor, with a web administration interface on port 8080 for LAN or Tailscale access.
 
 
 ### One-liner install
@@ -19,6 +19,7 @@ https://github.com/Gvte-Kali/element-tor
 - [Server requirements](#server-requirements)
 - [Install the server](#install-the-server)
 - [Managing the stack](#managing-the-stack)
+- [Web administration from your PC](#web-administration-from-your-pc)
 - [Creating users](#creating-users)
 - [Client setup](#client-setup)
   - [Android](#android)
@@ -101,8 +102,8 @@ resource usage stays low regardless of room size — only your users matter.
   └──────────────────┘
 ```
 
-- Synapse **never** binds to the host machine's network interface
-- Tor is the **only** ingress — no clearnet access possible
+- Synapse **never** binds to the host machine's network interface; administration is proxied through the web UI
+- The `.onion` Matrix endpoint uses Tor; the administration service also proxies the Matrix client and admin APIs on its configured network address.
 - Matrix federation is disabled — this is a fully isolated private server
 - The `.onion` address is stable across restarts (private keys persisted in a Docker volume)
 - All secrets are randomly generated on first boot
@@ -176,6 +177,88 @@ whistor onion          # Print the .onion address and homeserver URL
 ```
 
 ---
+
+## Web administration from your PC
+
+The `admin` Docker service serves [Ketesa](https://github.com/etkecc/ketesa), the
+maintained Synapse administration UI, on **port 8080**. Use it to list, search,
+create and edit users, reset passwords, manage administrator rights and deactivate
+accounts. The browser calls Synapse through the same service: no Docker hostname
+or `.onion` connectivity is required on your PC. Synapse checks administrator
+permissions on each management API request.
+
+### Install or upgrade
+
+On the **server**, update the checkout and start the stack:
+
+```bash
+cd /path/to/Whistor
+git pull --ff-only
+docker compose up -d --build
+whistor user admin YOUR_ADMIN_USERNAME
+```
+
+The last command creates your first administrator and prompts for a password;
+skip it if an administrator already exists. Keep an existing working admin account.
+The interface uses Matrix administrator credentials, not your SSH/Linux login.
+
+### LAN (no VPN required)
+
+On your **PC**, open `http://SERVER_LAN_IP:8080` and sign in with the administrator
+account. The homeserver URL is configured automatically. The UI listens on all
+IPv4 interfaces by default. Allow TCP 8080 from your LAN in the server firewall if
+needed. You do not need a browser installed on the server.
+
+### Tailscale
+
+Install Tailscale on both the server and your PC and join the same tailnet. Open
+`http://SERVER_TAILSCALE_IP:8080` from your PC. No public port forwarding is needed;
+your tailnet policy must allow your PC to reach server TCP 8080.
+
+For a private HTTPS URL, run on the server:
+
+```bash
+tailscale serve --bg http://127.0.0.1:8080
+```
+
+Open the HTTPS URL printed by Tailscale from your PC. Tailscale may first ask you
+to enable Serve/HTTPS for the tailnet. This uses **Serve**, not public Funnel.
+
+### SSH tunnel
+
+From your **PC**, keep this running:
+
+```bash
+ssh -N -L 8080:127.0.0.1:8080 USER@SERVER
+```
+
+Then open `http://localhost:8080`. If local port 8080 is occupied, forward another
+local port, for example `-L 18080:127.0.0.1:8080`, and open `http://localhost:18080`.
+
+### Bind address, custom port and Internet access
+
+Create `.env` next to `docker-compose.yml` (or copy `.env.example`):
+
+```dotenv
+WHISTOR_ADMIN_BIND=0.0.0.0
+WHISTOR_ADMIN_PORT=8080
+```
+
+Set the bind address to the server's LAN/Tailscale IPv4 to select one interface,
+or to `127.0.0.1` for SSH/Tailscale Serve/reverse proxy access only. Apply changes
+with `docker compose up -d --build admin`. The UI accepts LAN IPs, DNS names and
+Tailscale names; the Matrix service itself still has no published host port.
+
+For access from the Internet without a VPN, point an **HTTPS reverse proxy** at
+`http://127.0.0.1:8080`, preserving `Host` and setting `X-Forwarded-Proto: https`.
+Use a dedicated hostname at `/` (subpaths are not supported). Use HTTPS when
+sending administrator credentials over untrusted networks; do not port-forward
+plain HTTP 8080 directly to the Internet. Log out after administration, especially
+on a shared PC. The web UI does not need the Docker socket or Synapse data volumes.
+
+Run `whistor admin` to display access options. `whistor update` pulls the Synapse
+and Tor images and rebuilds the administration image with the latest upstream UI.
+For installations made without Git, rerun the installer to retrieve new project files.
 
 ## Creating users
 
@@ -405,8 +488,8 @@ docker run --rm \
 
 ## Security
 
-- The Docker network is marked `internal: true` — containers have no outbound internet access
-- No ports are published to the host machine's network interface in `docker-compose.yml`
+- Synapse uses an `internal: true` Docker network with no outbound Internet routing. Tor and the administration proxy also have their own access networks.
+- Only the administration service publishes a port (8080 by default, configurable for LAN/Tailscale). Synapse has no published port.
 - Matrix federation is disabled via `federation_domain_whitelist: []` and `trusted_key_servers: []`
 - Public registration is disabled — only admins can create accounts
 - All secrets (registration key, macaroon key, form secret) are randomly generated on first boot and stored only inside the Docker volume

@@ -1,0 +1,21 @@
+name: Test web administration
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate scripts and Compose
+        run: |
+          bash -n install.sh whistor scripts/entrypoint.sh
+          docker compose config --quiet
+      - name: Build administration interface
+        run: docker compose build --pull admin
+      - name: Test login, permissions and user management against Synapse latest
+        run: python3 -m unittest discover -s tests -v

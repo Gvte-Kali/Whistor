@@ -154,7 +154,7 @@ command -v qrencode &>/dev/null && ok "qrencode: $(qrencode --version 2>&1 | hea
 section "Downloading project files"
 
 # Create the directory structure regardless of which download method we use.
-mkdir -p "$INSTALL_DIR"/{config,scripts}
+mkdir -p "$INSTALL_DIR"/{config,scripts,admin}
 
 if command -v git &>/dev/null; then
   # git is available — use it.
@@ -186,6 +186,9 @@ else
   fetch_file "config/torrc.template"           "config/torrc.template"
   fetch_file "config/homeserver.template.yaml" "config/homeserver.template.yaml"
   fetch_file "scripts/entrypoint.sh"           "scripts/entrypoint.sh"
+  fetch_file ".env.example"                   ".env.example"
+  fetch_file "admin/Dockerfile"                "admin/Dockerfile"
+  fetch_file "admin/nginx.conf"                "admin/nginx.conf"
   fetch_file "whistor"                         "whistor"
 fi
 
@@ -258,7 +261,7 @@ section "Starting the Docker stack"
 # Move into the install directory so docker compose finds the compose file.
 cd "$INSTALL_DIR"
 
-$COMPOSE_CMD up -d
+$COMPOSE_CMD up -d --build
 ok "Stack started"
 
 # =============================================================================
@@ -481,10 +484,11 @@ Look at the github page https://github.com/Gvte-Kali/Whistor
 ║                              SECURITY NOTES                                 ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
-  • The Docker network is marked internal:true — containers have no outbound
-    internet access. Tor is the only way in or out.
+  • Synapse is isolated on the internal Docker network. Tor carries Matrix
+    traffic; the administration proxy also has a LAN/Tailscale access network.
 
-  • No ports are published on the host machine's network interface.
+  • Admin UI: http://SERVER_IP:8080 (LAN or Tailscale), admin login required.
+  • Synapse has no host port; the admin service proxies its client/admin APIs.
 
   • Matrix federation is disabled: users can only communicate with other users
     on THIS server. matrix.org and other servers are unreachable by design.
@@ -578,3 +582,8 @@ echo -e "  ${CYAN}whistor help${NC}                Show all available commands"
 echo ""
 echo -e "  ${DIM}Full client config: cat ${CONFIG_OUTPUT}${NC}"
 echo ""
+
+# Management UI is opened on the client PC, never on the server.
+echo "Admin UI: http://SERVER_IP:${WHISTOR_ADMIN_PORT:-8080} (LAN or Tailscale)"
+echo "Create the first administrator with: whistor user admin USERNAME"
+echo "Run 'whistor admin' for access options."
