@@ -1,30 +1,30 @@
-# Mises à jour et sauvegardes
+# Updates and backups
 
-## Comprendre `latest`
+## Understand `latest`
 
-Synapse utilise `ghcr.io/element-hq/synapse:latest`. L’administration est construite
-à partir de Ketesa `latest` et Nginx `stable-alpine`. Les versions changent avec le
-temps ; une mise à jour peut inclure une migration de la base de données.
+Synapse uses `ghcr.io/element-hq/synapse:latest`. The administration image is built
+from Ketesa `latest` and Nginx `stable-alpine`. Versions change over time; an
+upgrade may include database migrations.
 
-Avant toute mise à jour, consultez les
-[notes de migration Synapse](https://element-hq.github.io/synapse/latest/upgrade.html),
-y compris celles des versions intermédiaires sautées.
+Before updating, review the
+[Synapse upgrade notes](https://element-hq.github.io/synapse/latest/upgrade.html),
+including the notes for every intermediate version you skip.
 
-## Sauvegarder
+## Back up your deployment
 
-Les éléments critiques sont :
+Keep these items:
 
-| Élément | Pourquoi le conserver |
+| Item | Why it matters |
 | --- | --- |
-| Volume `tor-data` | Clés privées et identité `.onion` |
-| Volume `synapse-data` | Base de données, configuration, médias et clé de signature |
-| `.env` et fichiers du déploiement | Paramètres réseau et configuration reproductible |
+| `tor-data` volume | Private keys and the `.onion` identity |
+| `synapse-data` volume | Database, configuration, media and signing key |
+| `.env` and deployment files | Network settings and reproducible configuration |
 
-Les volumes portent normalement le préfixe du projet Compose. Vérifiez leurs noms
-avec `docker volume ls` : ne supposez pas qu’ils commencent toujours par `whistor_`.
+Volume names usually include the Compose project prefix. Check them with
+`docker volume ls`; do not assume they always start with `whistor_`.
 
-Pour une sauvegarde cohérente de SQLite, arrêtez les services qui écrivent avant
-l’archivage. Depuis le dossier du déploiement, sur le serveur :
+For a consistent SQLite backup, stop services that write data before archiving.
+From your deployment directory on the server:
 
 ```bash
 mkdir -p backups
@@ -38,39 +38,37 @@ docker compose run --rm --no-deps --user 0 --entrypoint /bin/sh \
 docker compose up -d
 ```
 
-Ces commandes remplacent les deux fichiers d’archive s’ils existent déjà. Déplacez
-chaque sauvegarde dans un dossier daté avant d’en refaire une. Copiez également
-`.env` et conservez le commit utilisé (`git rev-parse HEAD`) et les références des
-images (`docker compose images`). Stockez une copie hors du serveur, avec accès restreint.
+These commands overwrite the two archives if they already exist. Move each backup
+to a dated directory before creating another. Also copy `.env` and record the
+checkout commit (`git rev-parse HEAD`) and image references (`docker compose images`).
+Keep a restricted-access copy off the server.
 
-La commande `./whistor backup` existe aussi, mais utilise des noms de volumes
-prédéfinis et ne suspend pas Synapse : vérifiez ces hypothèses avant de l’employer
-pour une sauvegarde critique.
+The `./whistor backup` command is also available, but uses predefined volume names
+and does not pause Synapse. Check those assumptions before relying on it for a
+critical backup.
 
-## Mettre à jour le code et les images
+## Update the source and images
 
-Sur **le serveur**, après sauvegarde :
+On **the server**, after backing up:
 
 ```bash
-cd /chemin/vers/Whistor
+cd /path/to/Whistor
 export WHISTOR_DIR="$PWD"
 git pull --ff-only
 ./whistor update
 ```
 
-`whistor update` télécharge les images de Synapse et Tor, reconstruit l’administration
-avec les dernières images de base, puis recrée les conteneurs. Cette commande ne
-fait **pas** de `git pull` à votre place. Vérifiez ensuite `docker compose ps`, les
-logs et une connexion de test depuis votre PC.
+`whistor update` pulls Synapse and Tor images, rebuilds administration with the
+latest base images, then recreates containers. It does **not** run `git pull` for
+you. Afterwards, check `docker compose ps`, logs and a test login from your PC.
 
-## Restaurer
+## Restore
 
-Restaurez d’abord dans un environnement isolé si possible. Utilisez les images et
-le code correspondant à la sauvegarde. Arrêtez les services ; restaurez chaque
-archive dans son volume correspondant, en conservant les propriétaires et permissions.
-Rétablissez également `.env` avant le redémarrage.
+Restore into an isolated environment first when possible. Use images and source
+matching your backup. Stop services, then restore each archive to its corresponding
+volume, preserving ownership and permissions. Restore `.env` before restarting.
 
-Ne démarrez pas une ancienne version de Synapse sur une base ayant subi une migration
-plus récente : revenir en arrière nécessite aussi la sauvegarde correspondante.
-Ne lancez pas `docker compose down -v` sur votre déploiement pour résoudre un incident :
-cela supprimerait les volumes et peut faire perdre définitivement l’adresse `.onion`.
+Do not start an older Synapse version on a database migrated by a newer version:
+rolling back also requires the matching data backup. Do not run
+`docker compose down -v` on your deployment to troubleshoot an incident. It deletes
+volumes and can permanently destroy your `.onion` identity.

@@ -1,14 +1,14 @@
-# Installer Whistor
+# Install Whistor
 
-## Préparer le serveur
+## Prepare your server
 
-Utilisez un serveur Linux avec Docker et le plugin Docker Compose v2. Debian et
-Ubuntu sont des choix adaptés. Prévoyez au minimum 1 Go de RAM, 10 Go de stockage,
-et davantage selon le nombre d’utilisateurs et les médias conservés.
+Use a Linux server with Docker and the Docker Compose v2 plugin. Debian and Ubuntu
+are suitable choices. Allow at least 1 GB of RAM and 10 GB of storage, with more
+capacity for additional users and media.
 
-Les commandes Docker doivent fonctionner avec votre compte. Le serveur doit
-pouvoir télécharger les images et joindre le réseau Tor. Votre PC d’administration
-doit pouvoir joindre le serveur par LAN, Tailscale ou SSH.
+Your account must be able to run Docker. The server needs connectivity to download
+images and join the Tor network. Your administration PC needs access to the server
+over LAN, Tailscale or SSH.
 
 ```bash
 docker --version
@@ -16,9 +16,9 @@ docker compose version
 git --version
 ```
 
-## Déployer avec Git
+## Deploy from Git
 
-Sur **le serveur** :
+On **the server**:
 
 ```bash
 git clone https://github.com/Gvte-Kali/Whistor.git
@@ -28,17 +28,17 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-La configuration par défaut publie l’administration sur **toutes les interfaces IPv4,
-port 8080**. Vous pouvez modifier `.env` avant le démarrage pour choisir une autre
-adresse ou un autre port. Voir [les modes d’accès](administration.md).
+The default configuration publishes administration on **all IPv4 interfaces,
+port 8080**. Edit `.env` before starting if you want a different bind address or
+port. See [access options](administration.md).
 
-!!! tip "Commandes CLI depuis le dépôt"
-    Les exemples utilisent `./whistor`. Conservez `WHISTOR_DIR` défini avec le chemin
-    absolu du dépôt dans votre session. Après reconnexion SSH, revenez dans le dossier
-    puis relancez `export WHISTOR_DIR="$PWD"`. Cela évite de dépendre du chemin par
-    défaut de la CLI installée.
+!!! tip "Run the CLI from your checkout"
+    These guides use `./whistor`. Keep `WHISTOR_DIR` set to your checkout's absolute
+    path in the current shell. After reconnecting over SSH, return to that directory
+    and run `export WHISTOR_DIR="$PWD"` again. This avoids relying on the installed
+    CLI's default directory.
 
-## Vérifier le premier démarrage
+## Check the first startup
 
 ```bash
 docker compose ps
@@ -46,31 +46,31 @@ docker compose logs --tail=50 tor synapse admin
 ./whistor onion
 ```
 
-Tor crée l’identité `.onion` dans son volume. Synapse attend ce nom avant de générer
-sa configuration et ses secrets. Ce premier démarrage peut prendre quelques minutes.
-Ne supprimez pas les volumes pour accélérer ce processus.
+Tor creates the `.onion` identity in its volume. Synapse waits for that hostname
+before generating configuration and secrets. The first startup can take several
+minutes. Do not delete volumes to speed it up.
 
-## Créer votre administrateur
+## Create your administrator
 
-Lorsque Synapse fonctionne :
+Once Synapse is running:
 
 ```bash
-./whistor user admin monadmin
+./whistor user admin myadmin
 ```
 
-Saisissez le mot de passe à l’invite. Si vous avez déjà un administrateur,
-utilisez ce compte plutôt que de le recréer.
+Enter a password at the prompt. If you already have an administrator, use the
+existing account instead of recreating it.
 
-Depuis **votre PC**, ouvrez `http://IP_DU_SERVEUR:8080` puis connectez-vous avec
-ce compte. Le serveur Matrix est détecté automatiquement par l’interface.
+On **your PC**, open `http://SERVER_IP:8080` and sign in with this account.
+The interface detects the homeserver automatically.
 
-[Configurer l’accès LAN ou Tailscale](administration.md){ .md-button }
+[Configure LAN or Tailscale access](administration.md){ .md-button }
 
-## Installateur automatique
+## Automated installer
 
-Le dépôt fournit aussi `install.sh`. Il télécharge les fichiers, construit le
-service d’administration et installe la CLI si les permissions le permettent.
-Pour lire le script avant exécution :
+The repository also provides `install.sh`. It downloads the project files, builds
+the administration service and installs the CLI when permissions allow it. To
+review the script before executing it:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Gvte-Kali/Whistor/main/install.sh -o install.sh
@@ -78,6 +78,6 @@ less install.sh
 bash install.sh
 ```
 
-Vérifiez le dossier affiché par l’installateur et définissez `WHISTOR_DIR` si votre
-CLI pointe vers un autre emplacement. Pour une installation reproductible et les
-mises à jour du code, la méthode Git ci-dessus est recommandée.
+Check the installation directory printed by the script and set `WHISTOR_DIR` if
+your CLI points elsewhere. The Git method above is recommended for a reproducible
+checkout and future source updates.

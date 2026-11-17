@@ -1,43 +1,44 @@
-# Votre serveur Matrix, votre administration
+# Your Matrix server. Your administration.
 
-**Whistor** déploie un serveur de messagerie Matrix/Synapse avec un service caché
-Tor v3 et une interface web pour gérer vos utilisateurs depuis votre PC.
+**Whistor** deploys a Matrix/Synapse messaging server with a Tor v3 hidden service
+and a web interface to manage users from your own PC.
 
-[Installer Whistor](installation.md){ .md-button .md-button--primary }
-[Ouvrir l’administration](administration.md){ .md-button }
+[Install Whistor](installation.md){ .md-button .md-button--primary }
+[Manage users](administration.md){ .md-button }
 
-## Deux usages, deux points d’accès
+## Two tasks, two access paths
 
-| Besoin | Depuis votre PC | Sur le serveur |
+| Task | On your PC | On the server |
 | --- | --- | --- |
-| Discuter sur Matrix | Un client compatible Tor, par exemple **element-tor** | Synapse et Tor |
-| Gérer les comptes | Un navigateur, en LAN, via Tailscale ou tunnel SSH | Le service Docker `admin` sur le port **8080** |
+| Chat on Matrix | A Tor-compatible client such as **element-tor** | Synapse and Tor |
+| Manage accounts | A browser over LAN, Tailscale or an SSH tunnel | The Docker `admin` service on port **8080** |
 
-Le navigateur s’ouvre sur **votre PC**, pas sur la machine qui héberge Whistor.
-Vous vous connectez à l’administration avec un **compte administrateur Synapse**.
-Votre compte Linux/SSH est distinct.
+Open the browser on **your PC**, not on the machine hosting Whistor. Sign in to the
+administration interface with a **Synapse administrator account**. Your Linux/SSH
+account is separate.
 
-## Ce que vous pouvez gérer
+## What you can manage
 
-- Créer, rechercher et modifier des utilisateurs.
-- Réinitialiser leurs mots de passe et attribuer des droits administrateur.
-- Désactiver les comptes qui ne doivent plus se connecter.
-- Exploiter les autres fonctions de [Ketesa](https://github.com/etkecc/ketesa), l’interface d’administration intégrée.
+- Create, search and edit users.
+- Reset passwords and assign administrator privileges.
+- Deactivate accounts that should no longer have access.
+- Use the additional tools provided by [Ketesa](https://github.com/etkecc/ketesa), the integrated administration interface.
 
-La fédération et l’inscription publique sont désactivées par défaut. Les conversations
-chiffrées dépendent du chiffrement de bout en bout activé dans les clients Matrix.
+Federation and public registration are disabled by default. Message encryption
+depends on end-to-end encryption being enabled in your Matrix clients.
 
-!!! info "Périmètre réseau"
-    Le service `.onion` reste disponible pour Matrix. Le service d’administration
-    expose aussi les API client et administrateur de Synapse sur son adresse réseau.
-    Il ne faut donc pas considérer toute l’installation comme accessible uniquement par Tor.
-    Consultez [l’architecture](architecture.md) pour choisir l’exposition adaptée.
+!!! info "Network scope"
+    The `.onion` service remains available for Matrix. The administration service
+    also exposes Synapse's client and administrator APIs on its configured network
+    address. The entire deployment should therefore not be considered Tor-only.
+    Read the [architecture guide](architecture.md) to choose your access model.
 
-## Ressources
+## Resources
 
-- [Code source Whistor](https://github.com/Gvte-Kali/Whistor)
-- [Télécharger element-tor](https://github.com/Gvte-Kali/element-tor/releases/latest)
-- [Catalogue IT-Projects](https://github.com/Gvte-Kali/IT-Projects)
+- [Whistor source code](https://github.com/Gvte-Kali/Whistor)
+- [Download element-tor](https://github.com/Gvte-Kali/element-tor/releases/latest)
+- [IT-Projects catalogue](https://github.com/Gvte-Kali/IT-Projects)
 
-Documentation vérifiée le **17 novembre 2026**, avec Synapse `latest` et l’interface
-web intégrée. Les images `latest` évolueront : consultez les notes upstream avant chaque mise à jour.
+Documentation checked on **November 17, 2026**, with Synapse `latest` and the
+integrated administration service. Images tagged `latest` change over time:
+review upstream release notes before upgrading.
