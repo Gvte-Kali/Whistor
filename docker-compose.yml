@@ -29,7 +29,7 @@ services:
       - synapse
 
   synapse:
-    image: matrixdotorg/synapse:latest
+    image: ghcr.io/element-hq/synapse:latest
     container_name: synapse-server
     restart: unless-stopped
     networks:

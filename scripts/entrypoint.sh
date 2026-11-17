@@ -3,7 +3,7 @@
 # entrypoint.sh — whistor Synapse container init script
 # =============================================================================
 #
-# This script runs INSIDE the matrixdotorg/synapse container as the custom
+# This script runs INSIDE the ghcr.io/element-hq/synapse container as the custom
 # entrypoint defined in docker-compose.yml.
 #
 # It is executed every time the container starts, but most of its work only

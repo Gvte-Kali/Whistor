@@ -96,7 +96,7 @@ resource usage stays low regardless of room size — only your users matter.
            │  Docker internal network only (no host exposure)
            ▼  synapse:8008
   ┌──────────────────┐
-  │   Synapse        │  ← container: matrixdotorg/synapse
+  │   Synapse        │  ← container: ghcr.io/element-hq/synapse
   │   homeserver     │
   └──────────────────┘
 ```
@@ -151,6 +151,18 @@ whistor config
 
 ---
 
+## Updating Synapse
+
+The stack follows the upstream `ghcr.io/element-hq/synapse:latest` image.
+Compatibility was checked with stable Synapse **1.165.0** on 2026-11-17.
+Before running `whistor update`, run `whistor backup` and read the
+[upgrade notes](https://element-hq.github.io/synapse/latest/upgrade.html) for every
+skipped version. Database migrations can prevent downgrades.
+
+`whistor update` pulls the current images and recreates the containers, keeping
+the Tor keys and Synapse volumes. It does not update the repository checkout.
+Restore a matching data backup if you need to return to an older Synapse image.
+
 ## Managing the stack
 
 ```bash
@@ -159,7 +171,7 @@ whistor stop           # Stop all containers
 whistor restart        # Restart all containers
 whistor status         # Show container state + .onion address
 whistor logs           # Follow live logs (Ctrl+C to exit)
-whistor update         # Pull latest Docker images and restart
+whistor update         # Pull configured Docker images and restart
 whistor onion          # Print the .onion address and homeserver URL
 ```
 
