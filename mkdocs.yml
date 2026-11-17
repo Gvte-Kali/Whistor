@@ -3,7 +3,8 @@ site_description: Deploy and manage your Matrix server with Tor, Docker and a we
 site_url: https://gvte-kali.github.io/Whistor/
 repo_url: https://github.com/Gvte-Kali/Whistor
 repo_name: Gvte-Kali/Whistor
-edit_uri: edit/main/docs/
+edit_uri: edit/main/docs-src/
+docs_dir: docs-src
 theme:
   name: material
   language: en

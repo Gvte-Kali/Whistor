@@ -519,3 +519,19 @@ whistor/
 ## License
 
 MIT
+
+## Maintaining the documentation
+
+The English documentation sources are in `docs-src/`. GitHub Pages serves the
+compiled static site from `main` → `/docs`, including navigation and search.
+After editing the sources, rebuild and commit the generated `docs/` files:
+
+```bash
+python3 -m venv .venv-docs
+.venv-docs/bin/pip install -r requirements-docs.txt
+.venv-docs/bin/python scripts/build-docs.py
+git add docs-src docs mkdocs.yml
+```
+
+GitHub Pages publishes changes pushed to `main` automatically. The documentation
+workflow checks the MkDocs build on pull requests and source updates.
