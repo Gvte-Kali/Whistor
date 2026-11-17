@@ -1,0 +1,46 @@
+site_name: Whistor
+site_description: Installer et administrer votre serveur Matrix avec Tor, Docker et une interface web.
+site_url: https://gvte-kali.github.io/Whistor/
+repo_url: https://github.com/Gvte-Kali/Whistor
+repo_name: Gvte-Kali/Whistor
+edit_uri: edit/main/docs/
+theme:
+  name: material
+  language: fr
+  font: false
+  palette:
+    - scheme: slate
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/weather-sunny
+        name: Passer au thème clair
+    - scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Passer au thème sombre
+  features:
+    - navigation.sections
+    - navigation.footer
+    - content.code.copy
+plugins:
+  - search:
+      lang: fr
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - attr_list
+  - tables
+nav:
+  - Découvrir Whistor: index.md
+  - Installation: installation.md
+  - Interface web et utilisateurs: administration.md
+  - Connecter un client Matrix: clients.md
+  - Mises à jour et sauvegardes: maintenance.md
+  - Architecture et accès réseau: architecture.md
+  - Dépannage: depannage.md

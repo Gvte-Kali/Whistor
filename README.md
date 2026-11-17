@@ -1,5 +1,7 @@
 # Whistor
 
+📚 **[Documentation GitHub Pages](https://gvte-kali.github.io/Whistor/)** — installation, interface web, LAN/Tailscale/SSH, maintenance et dépannage (français).
+
 > A self-hosted Matrix (Synapse) homeserver with a Tor v3 hidden service and optional network administration access.
 > Matrix over Tor, with a web administration interface on port 8080 for LAN or Tailscale access.
 
